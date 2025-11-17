@@ -10,14 +10,19 @@ interface DateRangePickerProps {
   initialRange?: DateRange;
 }
 
+// FIXED START DATE: September 15, 2025 (when data collection began)
+const FIXED_START_DATE = '2025-09-15';
+
 // Helper to calculate date range from today backwards
 function getDefaultDateRange(days: number): DateRange {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Set to end of today (23:59:59) to include today's data
+  today.setHours(23, 59, 59, 999);
   
   const endDate = new Date(today);
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - days);
+  startDate.setHours(0, 0, 0, 0);
   
   return {
     startDate: startDate.toISOString().split('T')[0],
@@ -44,10 +49,11 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
   const handleDateChange = (start: Date | null, end: Date | null) => {
     if (start && end) {
       const maxDate = new Date();
-      const minDate = new Date();
-      minDate.setDate(minDate.getDate() - 90);
+      maxDate.setHours(23, 59, 59, 999); // Include today's full day
+      
+      const minDate = new Date(FIXED_START_DATE); // Fixed start: Sept 15, 2024
 
-      // Enforce 90-day limit
+      // Enforce date limits
       if (end > maxDate) {
         end = maxDate;
       }
@@ -56,12 +62,6 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
       }
       if (end < start) {
         end = start;
-      }
-
-      const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysDiff > 90) {
-        start = new Date(end);
-        start.setDate(start.getDate() - 90);
       }
 
       setStartDate(start);
@@ -78,22 +78,32 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
   const setQuickRange = (days: number) => {
     // Calculate from TODAY backwards
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setHours(23, 59, 59, 999); // Include today's full day
     
     const end = new Date(today);
     const start = new Date(today);
     start.setDate(start.getDate() - days);
+    start.setHours(0, 0, 0, 0);
     
-    // Ensure we don't go beyond 90 days
-    const maxDaysBack = 90;
-    const minDate = new Date(today);
-    minDate.setDate(minDate.getDate() - maxDaysBack);
+    // Ensure we don't go before fixed start date
+    const minDate = new Date(FIXED_START_DATE);
     
     if (start < minDate) {
       start.setTime(minDate.getTime());
     }
     
     handleDateChange(start, end);
+  };
+
+  const setAllTimeRange = () => {
+    // Set to fixed start date (Sept 15, 2024) to today
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    
+    const start = new Date(FIXED_START_DATE);
+    start.setHours(0, 0, 0, 0);
+    
+    handleDateChange(start, today);
   };
 
   return (
@@ -107,7 +117,7 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
           startDate={startDate}
           endDate={endDate}
           maxDate={endDate}
-          minDate={new Date(new Date().setDate(new Date().getDate() - 90))}
+          minDate={new Date(FIXED_START_DATE)}
           className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           dateFormat="yyyy-MM-dd"
         />
@@ -147,8 +157,13 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
         >
           Last 90 days
         </button>
+        <button
+          onClick={setAllTimeRange}
+          className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors font-medium"
+        >
+          All Time
+        </button>
       </div>
     </div>
   );
 }
-
