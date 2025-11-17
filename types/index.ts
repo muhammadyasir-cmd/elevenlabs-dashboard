@@ -51,3 +51,9 @@ export interface DateRange {
   endDate: string;
 }
 
+export interface CallCategory {
+  category: string;
+  count: number;
+  percentage: number;
+}
+

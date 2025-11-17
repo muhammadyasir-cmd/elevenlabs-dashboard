@@ -1,0 +1,155 @@
+'use client';
+
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
+interface CategoryData {
+  category: string;
+  count: number;
+  percentage: number;
+}
+
+interface CallCategoriesChartProps {
+  data: CategoryData[];
+  totalCalls: number;
+  loading?: boolean;
+}
+
+const COLORS = [
+  '#3B82F6', // Blue
+  '#10B981', // Green
+  '#F59E0B', // Yellow
+  '#EF4444', // Red
+  '#8B5CF6', // Purple
+  '#EC4899', // Pink
+  '#06B6D4', // Cyan
+  '#F97316', // Orange
+  '#84CC16', // Lime
+  '#6366F1', // Indigo
+];
+
+export default function CallCategoriesChart({ data, totalCalls, loading }: CallCategoriesChartProps) {
+  if (loading) {
+    return (
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Call Categories</h3>
+        <div className="flex items-center justify-center h-64 text-gray-400">
+          Loading categories...
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Call Categories</h3>
+        <div className="flex items-center justify-center h-64 text-gray-400">
+          No data available
+        </div>
+      </div>
+    );
+  }
+
+  // Prepare chart data with formatted labels
+  const chartData = data.map((item, index) => ({
+    name: item.category,
+    count: item.count,
+    percentage: item.percentage,
+    color: COLORS[index % COLORS.length],
+  }));
+
+  return (
+    <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-white mb-2">Call Categories</h3>
+        <p className="text-sm text-gray-400">
+          Total Calls: <span className="text-white font-semibold">{totalCalls.toLocaleString()}</span>
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          Categorized using fuzzy matching on call summary titles
+        </p>
+      </div>
+      
+      <ResponsiveContainer width="100%" height={400}>
+        <BarChart
+          data={chartData}
+          layout="vertical"
+          margin={{ top: 5, right: 30, left: 150, bottom: 5 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis
+            type="number"
+            stroke="#9CA3AF"
+            tick={{ fill: '#9CA3AF' }}
+            label={{ value: 'Number of Calls', position: 'insideBottom', offset: -5, fill: '#9CA3AF' }}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            stroke="#9CA3AF"
+            tick={{ fill: '#9CA3AF', fontSize: 12 }}
+            width={140}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: '#1F2937',
+              border: '1px solid #374151',
+              borderRadius: '8px',
+              color: '#F3F4F6',
+            }}
+            formatter={(value: number, name: string, props: any) => {
+              if (name === 'count') {
+                return [
+                  `${value.toLocaleString()} calls (${props.payload.percentage}%)`,
+                  'Count',
+                ];
+              }
+              return [value, name];
+            }}
+            labelStyle={{ color: '#F3F4F6', fontWeight: 'bold' }}
+          />
+          <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.color} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      
+      {/* Category breakdown table */}
+      <div className="mt-6 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left pb-2 text-gray-400 font-medium">Category</th>
+              <th className="text-right pb-2 text-gray-400 font-medium">Count</th>
+              <th className="text-right pb-2 text-gray-400 font-medium">Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chartData.map((item, index) => (
+              <tr key={item.name} className="border-b border-gray-700/50">
+                <td className="py-2 text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    {item.name}
+                  </div>
+                </td>
+                <td className="py-2 text-right text-white font-medium">
+                  {item.count.toLocaleString()}
+                </td>
+                <td className="py-2 text-right text-gray-400">
+                  {item.percentage}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+

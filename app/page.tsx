@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Agent, AgentMetrics, DateRange } from '@/types';
+import { Agent, AgentMetrics, DateRange, CallCategory } from '@/types';
 import { getDateRange } from '@/lib/supabase';
 import DateRangePicker from '@/components/DateRangePicker';
 import AgentCard from '@/components/AgentCard';
 import AgentDetailModal from '@/components/AgentDetailModal';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import CallCategoriesChart from '@/components/Charts/CallCategoriesChart';
 
 export default function Dashboard() {
   console.log('🔵 Dashboard component rendering');
@@ -20,6 +21,9 @@ export default function Dashboard() {
   });
   const [agents, setAgents] = useState<Agent[]>([]);
   const [metrics, setMetrics] = useState<AgentMetrics[]>([]);
+  const [callCategories, setCallCategories] = useState<CallCategory[]>([]);
+  const [callCategoriesTotal, setCallCategoriesTotal] = useState<number>(0);
+  const [callCategoriesLoading, setCallCategoriesLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<{ id: string; name: string } | null>(null);
@@ -95,11 +99,33 @@ export default function Dashboard() {
     }
   }, [dateRange, addDebugInfo]);
 
+  // Fetch call categories (ALL historical data, no date filtering)
+  const fetchCallCategories = useCallback(async () => {
+    console.log('🟢 fetchCallCategories called');
+    setCallCategoriesLoading(true);
+    try {
+      const response = await fetch('/api/call-categories');
+      if (!response.ok) {
+        throw new Error('Failed to fetch call categories');
+      }
+      const data = await response.json();
+      setCallCategories(data.categories || []);
+      setCallCategoriesTotal(data.totalCalls || 0);
+      console.log('🟢 Call categories fetched:', data);
+    } catch (err) {
+      console.error('❌ Error fetching call categories:', err);
+      // Don't set error state - categories are supplementary data
+    } finally {
+      setCallCategoriesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     console.log('🟢 useEffect triggered, calling fetchData');
     addDebugInfo('useEffect: fetchData triggered');
     fetchData();
-  }, [fetchData, addDebugInfo]);
+    fetchCallCategories();
+  }, [fetchData, fetchCallCategories, addDebugInfo]);
 
   useEffect(() => {
     if (autoRefresh) {
@@ -107,6 +133,7 @@ export default function Dashboard() {
         console.log('🟢 Auto-refresh triggered');
         addDebugInfo('Auto-refresh triggered');
         fetchData();
+        fetchCallCategories(); // Also refresh categories
       }, 30000);
 
       return () => {
@@ -114,7 +141,7 @@ export default function Dashboard() {
         clearInterval(interval);
       };
     }
-  }, [autoRefresh, fetchData, addDebugInfo]);
+  }, [autoRefresh, fetchData, fetchCallCategories, addDebugInfo]);
 
   const handleViewDetails = (agentId: string) => {
     const agent = agents.find(a => a.agent_id === agentId);
@@ -193,6 +220,15 @@ export default function Dashboard() {
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-8">
           <h2 className="text-lg font-semibold text-white mb-4">Date Range</h2>
           <DateRangePicker onDateChange={setDateRange} initialRange={dateRange} />
+        </div>
+
+        {/* Call Categories Chart */}
+        <div className="mb-8">
+          <CallCategoriesChart
+            data={callCategories}
+            totalCalls={callCategoriesTotal}
+            loading={callCategoriesLoading}
+          />
         </div>
 
         {/* Error State */}
