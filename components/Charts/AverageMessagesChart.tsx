@@ -4,11 +4,11 @@ import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DailyMetric } from '@/types';
 
-interface CallVolumeChartProps {
+interface AverageMessagesChartProps {
   data: DailyMetric[];
 }
 
-export default function CallVolumeChart({ data }: CallVolumeChartProps) {
+export default function AverageMessagesChart({ data }: AverageMessagesChartProps) {
   // Calculate 3-day moving average for trend line
   const chartData = useMemo(() => {
     return data.map((item, index) => {
@@ -16,9 +16,9 @@ export default function CallVolumeChart({ data }: CallVolumeChartProps) {
       const start = Math.max(0, index - Math.floor(windowSize / 2));
       const end = Math.min(data.length, start + windowSize);
       const window = data.slice(start, end);
-      const trendValue = window.length > 0 
-        ? window.reduce((sum, d) => sum + d.conversationCount, 0) / window.length
-        : item.conversationCount;
+      const trendValue = window.length > 0
+        ? window.reduce((sum, d) => sum + d.avgMessages, 0) / window.length
+        : item.avgMessages;
       
       return {
         ...item,
@@ -29,7 +29,7 @@ export default function CallVolumeChart({ data }: CallVolumeChartProps) {
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">Call Volume Over Time</h3>
+      <h3 className="text-lg font-semibold text-white mb-4">Average Messages Over Time</h3>
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -61,11 +61,11 @@ export default function CallVolumeChart({ data }: CallVolumeChartProps) {
           />
           <Line
             type="monotone"
-            dataKey="conversationCount"
+            dataKey="avgMessages"
             stroke="#3B82F6"
             strokeWidth={2}
             dot={{ fill: '#3B82F6', r: 4 }}
-            name="Conversations"
+            name="Avg Messages"
           />
           <Line
             type="monotone"

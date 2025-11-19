@@ -6,9 +6,7 @@ import { formatDuration } from '@/lib/supabase';
 import MetricCard from './MetricCard';
 import CallVolumeChart from './Charts/CallVolumeChart';
 import DurationTrendChart from './Charts/DurationTrendChart';
-import StatusPieChart from './Charts/StatusPieChart';
-import DirectionDonutChart from './Charts/DirectionDonutChart';
-import SuccessRateChart from './Charts/SuccessRateChart';
+import AverageMessagesChart from './Charts/AverageMessagesChart';
 import ConversationsTable from './ConversationsTable';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -150,9 +148,7 @@ export default function AgentDetailModal({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <CallVolumeChart data={dailyMetrics} />
           <DurationTrendChart data={dailyMetrics} />
-          <StatusPieChart data={metrics.statusBreakdown} />
-          <DirectionDonutChart data={metrics.directionBreakdown} />
-          <SuccessRateChart data={dailyMetrics} />
+          <AverageMessagesChart data={dailyMetrics} />
         </div>
 
         {/* Conversations Table */}

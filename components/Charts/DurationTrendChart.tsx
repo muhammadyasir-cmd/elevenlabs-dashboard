@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DailyMetric } from '@/types';
 import { formatDuration } from '@/lib/supabase';
@@ -9,11 +10,29 @@ interface DurationTrendChartProps {
 }
 
 export default function DurationTrendChart({ data }: DurationTrendChartProps) {
+  // Calculate 3-day moving average for trend line
+  const chartData = useMemo(() => {
+    return data.map((item, index) => {
+      const windowSize = 3;
+      const start = Math.max(0, index - Math.floor(windowSize / 2));
+      const end = Math.min(data.length, start + windowSize);
+      const window = data.slice(start, end);
+      const trendValue = window.length > 0
+        ? window.reduce((sum, d) => sum + d.avgDuration, 0) / window.length
+        : item.avgDuration;
+      
+      return {
+        ...item,
+        trendValue: trendValue,
+      };
+    });
+  }, [data]);
+
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
       <h3 className="text-lg font-semibold text-white mb-4">Average Call Duration Trend</h3>
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
+        <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
           <XAxis
             dataKey="date"
@@ -53,6 +72,14 @@ export default function DurationTrendChart({ data }: DurationTrendChartProps) {
             strokeWidth={2}
             dot={{ fill: '#10B981', r: 4 }}
             name="Avg Duration"
+          />
+          <Line
+            type="monotone"
+            dataKey="trendValue"
+            stroke="#ef4444"
+            strokeWidth={3}
+            dot={false}
+            name="Trend"
           />
         </LineChart>
       </ResponsiveContainer>
