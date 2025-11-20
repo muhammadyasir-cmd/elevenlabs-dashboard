@@ -9,20 +9,31 @@ interface CallVolumeChartProps {
 }
 
 export default function CallVolumeChart({ data }: CallVolumeChartProps) {
-  // Calculate 3-day moving average for trend line
+  // Calculate linear regression for straight trend line
   const chartData = useMemo(() => {
+    if (data.length === 0) return [];
+    
+    // Calculate linear regression coefficients
+    const n = data.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    
+    data.forEach((point, index) => {
+      const x = index;
+      const y = point.conversationCount || 0;
+      sumX += x;
+      sumY += y;
+      sumXY += x * y;
+      sumX2 += x * x;
+    });
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+    
+    // Create straight line using linear regression
     return data.map((item, index) => {
-      const windowSize = 3;
-      const start = Math.max(0, index - Math.floor(windowSize / 2));
-      const end = Math.min(data.length, start + windowSize);
-      const window = data.slice(start, end);
-      const trendValue = window.length > 0 
-        ? window.reduce((sum, d) => sum + d.conversationCount, 0) / window.length
-        : item.conversationCount;
-      
       return {
         ...item,
-        trendValue: trendValue,
+        trendValue: intercept + slope * index,
       };
     });
   }, [data]);
@@ -68,7 +79,7 @@ export default function CallVolumeChart({ data }: CallVolumeChartProps) {
             name="Conversations"
           />
           <Line
-            type="monotone"
+            type="linear"
             dataKey="trendValue"
             stroke="#ef4444"
             strokeWidth={3}

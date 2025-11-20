@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Fixed 10 categories as specified
 const CATEGORIES = [
   'Appointment Requests',
@@ -106,7 +109,8 @@ export async function GET() {
       const { data, error } = await supabase
         .from('conversations')
         .select('conversation_id, call_summary_title')
-        .range(from, from + pageSize - 1);
+        .range(from, from + pageSize - 1)
+        .limit(pageSize);
 
       if (error) {
         console.error('❌ [API] /api/call-categories - Supabase error:', error);
