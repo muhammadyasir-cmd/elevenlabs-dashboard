@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase, dateToUnix } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -286,128 +286,84 @@ function categorizeCall(title: string | null | undefined): string {
   return bestMatch;
 }
 
-export async function GET(request: Request) {
-  console.log('🟡 [API] /api/call-categories - Request received');
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  
+  const category = searchParams.get('category');
+  const agentId = searchParams.get('agent_id');
+  const startDate = searchParams.get('start_date');
+  const endDate = searchParams.get('end_date');
+
+  if (!category) {
+    return NextResponse.json({ error: 'Category parameter required' }, { status: 400 });
+  }
+
   try {
-    // Extract optional query parameters
-    const { searchParams } = new URL(request.url);
-    const agentId = searchParams.get('agent_id');
-    const startDate = searchParams.get('start_date');
-    const endDate = searchParams.get('end_date');
+    // Build query with optional filters
+    let query = supabase
+      .from('conversations')
+      .select('conversation_id, call_summary_title, start_time_unix_secs, agent_name');
 
-    console.log('🟡 [API] /api/call-categories - Query params:', { agentId, startDate, endDate });
+    if (agentId) {
+      query = query.eq('agent_id', agentId);
+    }
 
-    // Calculate date range timestamps if provided
-    let startTimestamp: number | undefined;
-    let endTimestampInclusive: number | undefined;
-    
     if (startDate && endDate) {
-      startTimestamp = dateToUnix(startDate);
-      const endTimestamp = dateToUnix(endDate);
-      endTimestampInclusive = endTimestamp + 86399; // End of day (23:59:59)
-      console.log('🟡 [API] /api/call-categories - Date range timestamps:', { startTimestamp, endTimestampInclusive });
+      const startTimestamp = dateToUnix(startDate);
+      const endTimestamp = dateToUnix(endDate) + 86399;
+      query = query
+        .gte('start_time_unix_secs', startTimestamp)
+        .lte('start_time_unix_secs', endTimestamp);
     }
 
-    // Determine fetch message based on filters
-    if (agentId || (startDate && endDate)) {
-      console.log('🟡 [API] /api/call-categories - Fetching filtered conversations...');
-    } else {
-      console.log('🟡 [API] /api/call-categories - Fetching ALL conversations...');
-    }
-    
-    // Use pagination to fetch conversations (with optional filters)
+    // Fetch all conversations with pagination
     let allConversations: any[] = [];
     let from = 0;
     const pageSize = 1000;
     let hasMore = true;
 
     while (hasMore) {
-      // Build base query
-      let query = supabase
-        .from('conversations')
-        .select('conversation_id, call_summary_title')
-        .range(from, from + pageSize - 1)
-        .limit(pageSize);
-
-      // Apply optional filters
-      if (agentId) {
-        query = query.eq('agent_id', agentId);
-      }
-
-      if (startTimestamp !== undefined && endTimestampInclusive !== undefined) {
-        query = query
-          .gte('start_time_unix_secs', startTimestamp)
-          .lte('start_time_unix_secs', endTimestampInclusive);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('❌ [API] /api/call-categories - Supabase error:', error);
-        return NextResponse.json(
-          { error: error.message, details: error },
-          { status: 500 }
-        );
-      }
-
+      const { data, error } = await query.range(from, from + pageSize - 1);
+      
+      if (error) throw error;
+      
       if (data && data.length > 0) {
         allConversations = allConversations.concat(data);
-        console.log(`🟡 [API] /api/call-categories - Fetched ${data.length} rows, total: ${allConversations.length}`);
-        
         if (data.length < pageSize) {
-          hasMore = false; // Last page
+          hasMore = false;
         } else {
-          from += pageSize; // Next page
+          from += pageSize;
         }
       } else {
         hasMore = false;
       }
     }
 
-    console.log('🟢 [API] /api/call-categories - Total conversations fetched:', allConversations.length);
-
-    // Categorize all conversations
-    const categoryCounts: Record<string, number> = {};
-    
-    // Initialize all categories with 0
-    CATEGORIES.forEach(cat => {
-      categoryCounts[cat] = 0;
+    // Filter conversations that match the requested category
+    // Use the SAME categorizeCall function from call-categories/route.ts
+    const filteredConversations = allConversations.filter(conv => {
+      const assignedCategory = categorizeCall(conv.call_summary_title);
+      return assignedCategory === category;
     });
 
-    // Categorize each conversation
-    allConversations.forEach(conv => {
-      const category = categorizeCall(conv.call_summary_title);
-      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
-    });
-
-    const totalCalls = allConversations.length;
-
-    // Build response with counts and percentages
-    const categories = CATEGORIES.map(category => ({
-      category,
-      count: categoryCounts[category] || 0,
-      percentage: totalCalls > 0 
-        ? parseFloat(((categoryCounts[category] / totalCalls) * 100).toFixed(1))
-        : 0,
-    }));
-
-    // Sort by count (descending)
-    categories.sort((a, b) => b.count - a.count);
-
-    console.log('🟢 [API] /api/call-categories - Categorization complete');
-    console.log('🟢 [API] /api/call-categories - Category breakdown:', categories);
+    // Sort by timestamp descending
+    filteredConversations.sort((a, b) => b.start_time_unix_secs - a.start_time_unix_secs);
 
     return NextResponse.json({
-      totalCalls,
-      categories,
+      category,
+      totalTitles: filteredConversations.length,
+      conversations: filteredConversations.map(conv => ({
+        conversation_id: conv.conversation_id,
+        call_summary_title: conv.call_summary_title || 'No title',
+        start_time_unix_secs: conv.start_time_unix_secs,
+        agent_name: conv.agent_name
+      }))
     });
+
   } catch (error) {
-    console.error('❌ [API] /api/call-categories - Unexpected error:', error);
+    console.error('Error fetching category details:', error);
     return NextResponse.json(
-      {
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { error: 'Failed to fetch category details' },
       { status: 500 }
     );
   }

@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import CategoryDetailsModal from '../CategoryDetailsModal';
 
 interface CategoryData {
   category: string;
@@ -12,6 +14,9 @@ interface CallCategoriesChartProps {
   data: CategoryData[];
   totalCalls: number;
   loading?: boolean;
+  agentId?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 const COLORS = [
@@ -27,7 +32,9 @@ const COLORS = [
   '#6366F1', // Indigo
 ];
 
-export default function CallCategoriesChart({ data, totalCalls, loading }: CallCategoriesChartProps) {
+export default function CallCategoriesChart({ data, totalCalls, loading, agentId, startDate, endDate }: CallCategoriesChartProps) {
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
   if (loading) {
     return (
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
@@ -75,6 +82,11 @@ export default function CallCategoriesChart({ data, totalCalls, loading }: CallC
           data={chartData}
           layout="vertical"
           margin={{ top: 5, right: 30, left: 150, bottom: 5 }}
+          onClick={(data: any) => {
+            if (data && data.activePayload && data.activePayload[0]) {
+              setSelectedCategory(data.activePayload[0].payload.name);
+            }
+          }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
           <XAxis
@@ -108,9 +120,18 @@ export default function CallCategoriesChart({ data, totalCalls, loading }: CallC
             }}
             labelStyle={{ color: '#F3F4F6', fontWeight: 'bold' }}
           />
-          <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+          <Bar 
+            dataKey="count" 
+            radius={[0, 4, 4, 0]}
+            cursor="pointer"
+          >
             {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
+              <Cell 
+                key={`cell-${index}`} 
+                fill={entry.color}
+                onClick={() => setSelectedCategory(entry.name)}
+                style={{ cursor: 'pointer' }}
+              />
             ))}
           </Bar>
         </BarChart>
@@ -128,7 +149,11 @@ export default function CallCategoriesChart({ data, totalCalls, loading }: CallC
           </thead>
           <tbody>
             {chartData.map((item, index) => (
-              <tr key={item.name} className="border-b border-gray-700/50">
+              <tr 
+                key={item.name} 
+                className="border-b border-gray-700/50 hover:bg-gray-700/50 cursor-pointer transition-colors"
+                onClick={() => setSelectedCategory(item.name)}
+              >
                 <td className="py-2 text-gray-300">
                   <div className="flex items-center gap-2">
                     <div
@@ -149,6 +174,15 @@ export default function CallCategoriesChart({ data, totalCalls, loading }: CallC
           </tbody>
         </table>
       </div>
+
+      <CategoryDetailsModal
+        isOpen={!!selectedCategory}
+        onClose={() => setSelectedCategory(null)}
+        category={selectedCategory || ''}
+        agentId={agentId}
+        startDate={startDate}
+        endDate={endDate}
+      />
     </div>
   );
 }

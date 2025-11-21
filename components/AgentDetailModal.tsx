@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AgentMetrics, DailyMetric, DateRange } from '@/types';
+import { AgentMetrics, DailyMetric, DateRange, CallCategory } from '@/types';
 import { formatDuration } from '@/lib/supabase';
 import MetricCard from './MetricCard';
 import CallVolumeChart from './Charts/CallVolumeChart';
 import DurationTrendChart from './Charts/DurationTrendChart';
 import AverageMessagesChart from './Charts/AverageMessagesChart';
+import CallCategoriesChart from './Charts/CallCategoriesChart';
 import ConversationsTable from './ConversationsTable';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -27,6 +28,8 @@ export default function AgentDetailModal({
   const [dailyMetrics, setDailyMetrics] = useState<DailyMetric[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [callCategories, setCallCategories] = useState<CallCategory[]>([]);
+  const [callCategoriesLoading, setCallCategoriesLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -61,6 +64,34 @@ export default function AgentDetailModal({
     };
 
     fetchData();
+  }, [agentId, dateRange]);
+
+  // Fetch call categories when modal opens or date range changes
+  useEffect(() => {
+    const fetchCallCategories = async () => {
+      setCallCategoriesLoading(true);
+      try {
+        const response = await fetch(
+          `/api/call-categories?agent_id=${agentId}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`
+        );
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch call categories');
+        }
+        
+        const data = await response.json();
+        setCallCategories(data.categories || []);
+      } catch (error) {
+        console.error('Failed to fetch call categories:', error);
+        setCallCategories([]);
+      } finally {
+        setCallCategoriesLoading(false);
+      }
+    };
+
+    if (agentId && dateRange.startDate && dateRange.endDate) {
+      fetchCallCategories();
+    }
   }, [agentId, dateRange]);
 
   if (loading) {
@@ -149,6 +180,24 @@ export default function AgentDetailModal({
           <CallVolumeChart data={dailyMetrics} />
           <DurationTrendChart data={dailyMetrics} />
           <AverageMessagesChart data={dailyMetrics} />
+        </div>
+
+        {/* Call Categories Chart */}
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-white mb-4">Call Categories</h3>
+          {callCategoriesLoading ? (
+            <div className="flex items-center justify-center h-64 bg-gray-800 border border-gray-700 rounded-lg">
+              <LoadingSpinner size="lg" />
+            </div>
+          ) : (
+            <CallCategoriesChart 
+              data={callCategories}
+              totalCalls={callCategories.reduce((sum, cat) => sum + cat.count, 0)}
+              agentId={agentId}
+              startDate={dateRange.startDate}
+              endDate={dateRange.endDate}
+            />
+          )}
         </div>
 
         {/* Conversations Table */}
