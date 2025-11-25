@@ -20,6 +20,7 @@ interface CallCategoriesChartProps {
 }
 
 const COLORS = [
+  '#8884d8', // Hangups - light blue
   '#3B82F6', // Blue
   '#10B981', // Green
   '#F59E0B', // Yellow

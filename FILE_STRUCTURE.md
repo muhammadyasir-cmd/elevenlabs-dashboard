@@ -1,6 +1,6 @@
 # ElevenLabs Agent Performance Dashboard – Complete System Documentation
 
-**Last Updated:** 2025-01-XX (Updated with 11 call categories, comprehensive keyword matching, and 0.15 similarity threshold)  
+**Last Updated:** 2025-01-XX (Updated with call category details modal, clickable categories, and agent-specific filtering)  
 **Project Path:** `/Users/yasir/Desktop/Web tracking portal new`
 
 ---
@@ -196,7 +196,9 @@ The `/api/call-categories` endpoint categorizes ALL historical conversations (no
 │   │   ├── agents/
 │   │   │   └── route.ts          # GET /api/agents - Agent discovery endpoint
 │   │   ├── call-categories/
-│   │   │   └── route.ts          # GET /api/call-categories - Call categorization endpoint
+│   │   │   ├── route.ts          # GET /api/call-categories - Call categorization endpoint
+│   │   │   └── details/
+│   │   │       └── route.ts      # GET /api/call-categories/details - Category details endpoint
 │   │   ├── conversations/
 │   │   │   └── route.ts          # GET /api/conversations - Paginated conversations
 │   │   ├── metrics/
@@ -211,6 +213,7 @@ The `/api/call-categories` endpoint categorizes ALL historical conversations (no
 ├── components/                   # React components
 │   ├── AgentCard.tsx             # Agent summary card component
 │   ├── AgentDetailModal.tsx      # Agent detail modal with charts and table
+│   ├── CategoryDetailsModal.tsx  # Modal showing call titles for a category
 │   ├── ConversationsTable.tsx    # Paginated conversation table component
 │   ├── DateRangePicker.tsx       # Date range selector component
 │   ├── LoadingSpinner.tsx        # Loading indicator component
@@ -524,18 +527,32 @@ const metrics = await Promise.all(metricsPromises);
 ```
 
 #### `app/api/call-categories/route.ts` ⭐ **Call Categorization Endpoint**
-**Purpose**: Categorizes ALL historical conversations into 11 predefined categories using comprehensive fuzzy matching with automotive shop terminology.
+**Purpose**: Categorizes conversations into 11 predefined categories using comprehensive fuzzy matching with automotive shop terminology.
 
-**Endpoint**: `GET /api/call-categories`
+**Endpoint**: `GET /api/call-categories?agent_id=optional&start_date=optional&end_date=optional`
+
+**Query Parameters** (all optional):
+- `agent_id` (optional): Filter conversations by specific agent
+- `start_date` (optional): Filter conversations from this date (YYYY-MM-DD)
+- `end_date` (optional): Filter conversations to this date (YYYY-MM-DD)
+
+**Behavior**:
+- **No parameters**: Returns ALL historical conversations (unchanged behavior for main dashboard)
+- **With parameters**: Returns filtered conversations by agent and/or date range (for agent detail modals)
 
 **Cache-Busting**: 
 - `export const dynamic = 'force-dynamic'` - Forces Next.js to never cache
 - `export const revalidate = 0` - Disables revalidation caching
 
 **Process**:
-1. Fetches ALL conversations (no date filtering) with pagination
-2. Uses comprehensive fuzzy matching algorithm to categorize each conversation based on `call_summary_title`
-3. Returns category counts and percentages sorted by count (descending)
+1. Extracts optional query parameters (`agent_id`, `start_date`, `end_date`)
+2. Builds Supabase query with optional filters:
+   - If `agent_id` provided: Filters by agent
+   - If `start_date` and `end_date` provided: Filters by date range
+   - If no parameters: Fetches ALL conversations (no filtering)
+3. Fetches conversations with pagination (handles 1000+ rows)
+4. Uses comprehensive fuzzy matching algorithm to categorize each conversation based on `call_summary_title`
+5. Returns category counts and percentages sorted by count (descending)
 
 **Categories** (11 total):
 1. **Appointment Scheduling**: schedule, book, appointment, reservation, time slot, availability
@@ -683,6 +700,47 @@ function categorizeCall(title: string | null | undefined): string {
 }
 ```
 
+#### `app/api/call-categories/details/route.ts` ⭐ **Category Details Endpoint**
+**Purpose**: Returns individual call titles for a specific category with optional filtering.
+
+**Endpoint**: `GET /api/call-categories/details?category=xxx&agent_id=optional&start_date=optional&end_date=optional`
+
+**Query Parameters**:
+- `category` (required): Category name to filter by
+- `agent_id` (optional): Filter conversations by specific agent
+- `start_date` (optional): Filter conversations from this date (YYYY-MM-DD)
+- `end_date` (optional): Filter conversations to this date (YYYY-MM-DD)
+
+**Process**:
+1. Validates required `category` parameter
+2. Builds Supabase query with optional filters (agent_id, date range)
+3. Fetches ALL matching conversations with pagination
+4. Filters conversations using the same `categorizeCall()` function to match the requested category
+5. Sorts by timestamp descending (newest first)
+6. Returns conversation details: conversation_id, call_summary_title, start_time_unix_secs, agent_name
+
+**Response Format**:
+```json
+{
+  "category": "Appointment Scheduling",
+  "totalTitles": 2341,
+  "conversations": [
+    {
+      "conversation_id": "conv_123",
+      "call_summary_title": "Customer wants to schedule oil change",
+      "start_time_unix_secs": 1704067200,
+      "agent_name": "Customer Support Agent"
+    }
+  ]
+}
+```
+
+**Key Features**:
+- Uses same categorization logic as main endpoint (copied `categorizeCall()` function)
+- Supports filtering by agent and date range for context-aware results
+- Pagination handles 1000+ conversations
+- Returns sorted list (newest first)
+
 #### `app/api/test/route.ts`
 **Purpose**: Diagnostic endpoint to test Supabase connectivity.
 
@@ -760,16 +818,18 @@ function getDefaultDateRange(days: number): DateRange {
 - **Charts Grid**:
   - Call Volume Chart (line chart with linear regression trend)
   - Duration Trend Chart (line chart with linear regression trend)
-  - Status Pie Chart
-  - Direction Donut Chart
-  - Success Rate Chart (line chart)
   - Average Messages Chart (line chart with linear regression trend)
+- **Call Categories Chart**: Filtered call categories for this agent and date range
+  - Shows categories specific to the selected agent
+  - Clickable bars/rows to view individual call titles
+  - Fetches from `/api/call-categories` with agent_id and date filters
 - **Conversations Table**: Paginated table of individual conversations
 - **Loading State**: Spinner while fetching data
 - **Error Handling**: Error message with close button
 
 **Data Fetching**:
 - Parallel fetch of `/api/metrics` and `/api/trends`
+- Separate fetch of `/api/call-categories` with agent_id and date range filters
 - Updates when date range or agent changes
 
 #### `components/ConversationsTable.tsx`
@@ -789,6 +849,29 @@ function getDefaultDateRange(days: number): DateRange {
 - Fetches 100 conversations per page
 - Shows "Showing X to Y of Z conversations"
 - Disables Previous/Next buttons at boundaries
+
+#### `components/CategoryDetailsModal.tsx` ⭐ **Category Details Modal**
+**Purpose**: Modal displaying individual call titles for a selected category.
+
+**Features**:
+- **Header**: Shows category name and close button
+- **Content**: Scrollable list of conversation titles
+- **Conversation Display**: Each conversation shows:
+  - Call summary title
+  - Agent name
+  - Timestamp (formatted as date/time)
+- **Loading State**: Spinner while fetching data
+- **Error Handling**: Error message with retry button
+- **Empty State**: Message when no conversations found
+
+**Data Fetching**:
+- Fetches from `/api/call-categories/details` with category and optional filters
+- Supports filtering by agent_id, start_date, end_date (passed as props)
+- Automatically refetches when modal opens or filters change
+
+**Usage**:
+- Opened when user clicks on a category bar or table row in `CallCategoriesChart`
+- Context-aware: Shows filtered results when opened from agent modal, all data when opened from main dashboard
 
 #### `components/LoadingSpinner.tsx`
 **Purpose**: Reusable loading indicator.
@@ -848,8 +931,8 @@ All chart components use **Recharts** library and are styled for dark theme.
 
 **Trend Line Calculation**: Same as CallVolumeChart (linear regression)
 
-##### `components/Charts/CallCategoriesChart.tsx`
-**Purpose**: Horizontal bar chart showing call category distribution.
+##### `components/Charts/CallCategoriesChart.tsx` ⭐ **Call Categories Chart**
+**Purpose**: Horizontal bar chart showing call category distribution with clickable categories.
 
 **Features**:
 - Horizontal bars for each category
@@ -857,8 +940,24 @@ All chart components use **Recharts** library and are styled for dark theme.
 - Shows count and percentage
 - Table below chart with detailed breakdown
 - Total calls display
+- **Clickable Interaction**:
+  - Click on any bar to view call titles for that category
+  - Click on any table row to view call titles for that category
+  - Opens `CategoryDetailsModal` with filtered results
+- **Context-Aware Filtering**:
+  - Accepts optional props: `agentId`, `startDate`, `endDate`
+  - When props provided: Shows filtered categories (for agent modals)
+  - When props not provided: Shows all historical data (for main dashboard)
 
-**Data Source**: `/api/call-categories` endpoint
+**Props**:
+- `data`: Array of category data
+- `totalCalls`: Total number of calls
+- `loading`: Optional loading state
+- `agentId`: Optional agent ID for filtering
+- `startDate`: Optional start date for filtering
+- `endDate`: Optional end date for filtering
+
+**Data Source**: `/api/call-categories` endpoint (with optional query parameters)
 
 ##### `components/Charts/StatusPieChart.tsx`
 **Purpose**: Pie chart showing status distribution (done, in-progress, failed, etc.).
@@ -1119,19 +1218,43 @@ export interface CallCategory {
 ---
 
 ### `GET /api/call-categories`
-**Purpose**: Get categorized breakdown of ALL historical conversations into 11 automotive-specific categories.
+**Purpose**: Get categorized breakdown of conversations into 11 automotive-specific categories.
 
-**Query Parameters**: None (fetches all historical data)
+**Query Parameters** (all optional):
+- `agent_id` (optional): Filter conversations by specific agent
+- `start_date` (optional): Filter conversations from this date (YYYY-MM-DD)
+- `end_date` (optional): Filter conversations to this date (YYYY-MM-DD)
 
 **Response**: `{ totalCalls: number, categories: CallCategory[] }`
 
 **Features**:
-- No date filtering (all historical data)
+- **No parameters**: Returns ALL historical conversations (unchanged behavior for main dashboard)
+- **With parameters**: Returns filtered conversations by agent and/or date range (for agent detail modals)
 - Cache-busting headers (`force-dynamic`, `revalidate: 0`)
 - Pagination to handle 1000+ records
 - Comprehensive fuzzy matching with 30-50+ keywords per category
 - Similarity threshold: 0.15 (aggressive matching)
 - 11 categories: Appointment Scheduling, Service Status Inquiries, Pricing and Quotes, Vehicle Diagnostics/Maintenance, Parts and Repairs, Billing and Payments, General Information, Customer Service Requests, Vehicle Logistics, Technical and Miscellaneous, Others
+
+---
+
+### `GET /api/call-categories/details`
+**Purpose**: Get individual call titles for a specific category with optional filtering.
+
+**Query Parameters**:
+- `category` (required): Category name to filter by
+- `agent_id` (optional): Filter conversations by specific agent
+- `start_date` (optional): Filter conversations from this date (YYYY-MM-DD)
+- `end_date` (optional): Filter conversations to this date (YYYY-MM-DD)
+
+**Response**: `{ category: string, totalTitles: number, conversations: ConversationDetail[] }`
+
+**Features**:
+- Returns conversation details: conversation_id, call_summary_title, start_time_unix_secs, agent_name
+- Uses same categorization logic as main endpoint
+- Supports filtering by agent and date range for context-aware results
+- Pagination handles 1000+ conversations
+- Sorted by timestamp descending (newest first)
 
 ---
 
@@ -1260,6 +1383,35 @@ export interface CallCategory {
 - Added `.limit(pageSize)` to Supabase query
 
 **Result**: API always fetches fresh data from Supabase.
+
+### ✅ Call Category Details Feature
+
+**Problem**: Need to view individual call titles within each category.
+
+**Solution**: 
+- Created `/api/call-categories/details` endpoint to fetch call titles for a specific category
+- Created `CategoryDetailsModal` component to display call titles in a modal
+- Updated `CallCategoriesChart` to be clickable (bars and table rows)
+- Added optional filtering support to main call-categories endpoint (agent_id, start_date, end_date)
+- Integrated category chart into agent detail modals with agent-specific filtering
+
+**Features**:
+- Click any category bar or table row to view call titles
+- Context-aware filtering: Shows filtered results in agent modals, all data in main dashboard
+- Modal displays conversation titles, agent names, and timestamps
+- Loading states and error handling
+- Scrollable list for many conversations
+
+**Files Created**:
+- `/app/api/call-categories/details/route.ts`: New endpoint for category details
+- `/components/CategoryDetailsModal.tsx`: New modal component
+
+**Files Updated**:
+- `/app/api/call-categories/route.ts`: Added optional query parameters support
+- `/components/Charts/CallCategoriesChart.tsx`: Added click handlers and modal integration
+- `/components/AgentDetailModal.tsx`: Added call categories chart with filtering
+
+**Result**: Users can now drill down into categories to see individual call titles, with proper filtering based on context (main dashboard vs agent modal).
 
 ### 🎨 UI Features
 

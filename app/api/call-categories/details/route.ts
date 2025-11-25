@@ -4,8 +4,16 @@ import { supabase, dateToUnix } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Fixed 11 categories as specified
+// Interface for conversation data used in categorization
+interface ConversationForCategorization {
+  call_summary_title?: string | null;
+  call_duration_secs?: number;
+  message_count?: number;
+}
+
+// Fixed 12 categories as specified (added Hangups)
 const CATEGORIES = [
+  'Hangups',
   'Appointment Scheduling',
   'Service Status Inquiries',
   'Pricing and Quotes',
@@ -21,6 +29,7 @@ const CATEGORIES = [
 
 // Category keywords for fuzzy matching - Comprehensive automotive shop terminology
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  'Hangups': [], // No keywords needed - uses duration + message count logic
   'Appointment Scheduling': [
     // Core appointment terms
     'appointment', 'appointments', 'schedule', 'scheduled', 'scheduling', 'book', 'booking', 'booked',
@@ -243,8 +252,19 @@ function calculateSimilarity(str1: string, str2: string): number {
   return intersection.length / union.length;
 }
 
-// Categorize a call summary title using fuzzy matching
-function categorizeCall(title: string | null | undefined): string {
+// Categorize a call using duration/message count and fuzzy matching
+function categorizeCall(conversation: ConversationForCategorization): string {
+  const title = conversation.call_summary_title;
+  const duration = conversation.call_duration_secs || 0;
+  const messageCount = conversation.message_count || 0;
+  
+  // NEW: Check for Hangups FIRST (before any keyword matching)
+  // Hangup criteria: duration < 15 seconds AND message count < 3
+  if (duration < 15 && messageCount < 3) {
+    return 'Hangups';
+  }
+  
+  // If not a hangup, proceed with existing keyword matching logic
   if (!title || title.trim() === '') {
     return 'Others';
   }
@@ -253,13 +273,13 @@ function categorizeCall(title: string | null | undefined): string {
   let bestMatch = 'Others';
   let bestScore = 0;
   
-  // Check each category's keywords
+  // Check each category's keywords (existing logic - DO NOT CHANGE)
   for (const category of CATEGORIES) {
-    if (category === 'Others') continue; // Skip catch-all
+    if (category === 'Others' || category === 'Hangups') continue; // Skip both catch-all categories
     
-    const keywords = CATEGORY_KEYWORDS[category];
+    const keywords = CATEGORY_KEYWORDS[category] || [];
     
-    // Check direct keyword matches
+    // Existing keyword matching logic - DO NOT CHANGE
     for (const keyword of keywords) {
       if (normalizedTitle.includes(keyword.toLowerCase())) {
         const score = calculateSimilarity(normalizedTitle, keyword);
@@ -278,7 +298,7 @@ function categorizeCall(title: string | null | undefined): string {
     }
   }
   
-  // If no good match found, use Others (lowered threshold from 0.2 to 0.15 for more aggressive matching)
+  // Require minimum threshold (existing logic - DO NOT CHANGE)
   if (bestScore < 0.15) {
     return 'Others';
   }
@@ -302,7 +322,7 @@ export async function GET(request: NextRequest) {
     // Build query with optional filters
     let query = supabase
       .from('conversations')
-      .select('conversation_id, call_summary_title, start_time_unix_secs, agent_name');
+      .select('conversation_id, call_summary_title, call_duration_secs, message_count, start_time_unix_secs, agent_name');
 
     if (agentId) {
       query = query.eq('agent_id', agentId);
@@ -342,7 +362,11 @@ export async function GET(request: NextRequest) {
     // Filter conversations that match the requested category
     // Use the SAME categorizeCall function from call-categories/route.ts
     const filteredConversations = allConversations.filter(conv => {
-      const assignedCategory = categorizeCall(conv.call_summary_title);
+      const assignedCategory = categorizeCall({
+        call_summary_title: conv.call_summary_title,
+        call_duration_secs: conv.call_duration_secs,
+        message_count: conv.message_count
+      });
       return assignedCategory === category;
     });
 
