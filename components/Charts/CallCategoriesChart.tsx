@@ -105,10 +105,9 @@ export default function CallCategoriesChart({ data, totalCalls, loading, agentId
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#1F2937',
-              border: '1px solid #374151',
-              borderRadius: '8px',
-              color: '#F3F4F6',
+              backgroundColor: 'rgba(31, 41, 55, 0.9)',
+              border: 'none',
+              color: '#ffffff',
             }}
             formatter={(value: number, name: string, props: any) => {
               if (name === 'count') {
@@ -119,7 +118,8 @@ export default function CallCategoriesChart({ data, totalCalls, loading, agentId
               }
               return [value, name];
             }}
-            labelStyle={{ color: '#F3F4F6', fontWeight: 'bold' }}
+            labelStyle={{ color: '#ffffff' }}
+            itemStyle={{ color: '#ffffff' }}
           />
           <Bar 
             dataKey="count" 
