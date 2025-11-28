@@ -86,8 +86,13 @@ export default function Dashboard() {
       console.log('🟢 Metrics data received:', metricsData);
       addDebugInfo(`Agents: ${agentsData.agents?.length || 0}, Metrics: ${metricsData.metrics?.length || 0}`);
 
+      // Sort metrics by totalConversations (call volume) in descending order
+      const sortedMetrics = (metricsData.metrics || []).sort(
+        (a, b) => b.totalConversations - a.totalConversations
+      );
+
       setAgents(agentsData.agents || []);
-      setMetrics(metricsData.metrics || []);
+      setMetrics(sortedMetrics);
       setLastUpdated(new Date());
       setCurrentPage(1); // Reset to first page when data changes
       addDebugInfo('Data loaded successfully');
