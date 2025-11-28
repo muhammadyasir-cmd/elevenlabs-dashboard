@@ -16,40 +16,40 @@ export default function AgentCard({ metrics, onViewDetails }: AgentCardProps) {
   };
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:border-gray-600 transition-colors">
-      <div className="flex justify-between items-start mb-4">
+    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 hover:border-gray-600 transition-all duration-200">
+      <div className="flex justify-between items-start mb-3">
         <div>
-          <h2 className="text-xl font-bold text-white mb-1">{metrics.agent_name}</h2>
+          <h2 className="text-lg font-bold text-white mb-1">{metrics.agent_name}</h2>
           <p className="text-xs text-gray-500 font-mono">{metrics.agent_id}</p>
         </div>
-        <span className="px-3 py-1 bg-blue-600 text-white text-sm font-semibold rounded">
+        <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded">
           {metrics.totalConversations} calls
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
           <p className="text-xs text-gray-400 mb-1">Avg Duration</p>
-          <p className="text-lg font-semibold text-white">
+          <p className="text-base font-semibold text-white">
             {formatDuration(metrics.avgCallDuration)}
           </p>
         </div>
         <div>
           <p className="text-xs text-gray-400 mb-1">Avg Messages</p>
-          <p className="text-lg font-semibold text-white">{metrics.avgMessages}</p>
+          <p className="text-base font-semibold text-white">{metrics.avgMessages}</p>
         </div>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-3">
         <div className="flex justify-between items-center mb-1">
           <p className="text-xs text-gray-400">Success Rate</p>
-          <p className={`text-lg font-bold ${getSuccessRateColor(metrics.successRate)}`}>
+          <p className={`text-base font-bold ${getSuccessRateColor(metrics.successRate)}`}>
             {metrics.successRate}%
           </p>
         </div>
-        <div className="w-full bg-gray-700 rounded-full h-2">
+        <div className="w-full bg-gray-700 rounded-full h-1.5">
           <div
-            className={`h-2 rounded-full ${
+            className={`h-1.5 rounded-full ${
               metrics.successRate >= 80
                 ? 'bg-green-500'
                 : metrics.successRate >= 60
@@ -63,7 +63,7 @@ export default function AgentCard({ metrics, onViewDetails }: AgentCardProps) {
 
       <button
         onClick={() => onViewDetails(metrics.agent_id)}
-        className="w-full mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded transition-colors"
+        className="w-full mt-3 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
       >
         View Details
       </button>

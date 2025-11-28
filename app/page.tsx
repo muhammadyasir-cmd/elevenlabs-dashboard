@@ -30,6 +30,8 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   const addDebugInfo = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -87,6 +89,7 @@ export default function Dashboard() {
       setAgents(agentsData.agents || []);
       setMetrics(metricsData.metrics || []);
       setLastUpdated(new Date());
+      setCurrentPage(1); // Reset to first page when data changes
       addDebugInfo('Data loaded successfully');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
@@ -291,15 +294,78 @@ export default function Dashboard() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {metrics.map((metric) => (
-                      <AgentCard
-                        key={metric.agent_id}
-                        metrics={metric}
-                        onViewDetails={handleViewDetails}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-300">
+                      {metrics
+                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                        .map((metric) => (
+                          <AgentCard
+                            key={metric.agent_id}
+                            metrics={metric}
+                            onViewDetails={handleViewDetails}
+                          />
+                        ))}
+                    </div>
+                    
+                    {/* Pagination Controls */}
+                    {metrics.length > itemsPerPage && (
+                      <div className="mt-8 flex flex-col items-center gap-4">
+                        <div className="text-sm text-gray-400">
+                          Page {currentPage} of {Math.ceil(metrics.length / itemsPerPage)}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Previous
+                          </button>
+                          
+                          <div className="flex gap-1">
+                            {Array.from({ length: Math.ceil(metrics.length / itemsPerPage) }, (_, i) => i + 1)
+                              .filter(page => {
+                                // Show first page, last page, current page, and pages around current
+                                const totalPages = Math.ceil(metrics.length / itemsPerPage);
+                                if (totalPages <= 7) return true;
+                                if (page === 1 || page === totalPages) return true;
+                                if (Math.abs(page - currentPage) <= 1) return true;
+                                return false;
+                              })
+                              .map((page, index, array) => {
+                                // Add ellipsis if there's a gap
+                                const showEllipsisBefore = index > 0 && array[index - 1] !== page - 1;
+                                return (
+                                  <div key={page} className="flex items-center gap-1">
+                                    {showEllipsisBefore && (
+                                      <span className="px-2 text-gray-500">...</span>
+                                    )}
+                                    <button
+                                      onClick={() => setCurrentPage(page)}
+                                      className={`px-3 py-2 min-w-[2.5rem] font-medium rounded transition-colors ${
+                                        currentPage === page
+                                          ? 'bg-blue-600 text-white'
+                                          : 'bg-gray-700 hover:bg-gray-600 text-white'
+                                      }`}
+                                    >
+                                      {page}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                          
+                          <button
+                            onClick={() => setCurrentPage(prev => Math.min(Math.ceil(metrics.length / itemsPerPage), prev + 1))}
+                            disabled={currentPage === Math.ceil(metrics.length / itemsPerPage)}
+                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
