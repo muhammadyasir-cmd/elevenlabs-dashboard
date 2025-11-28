@@ -7,6 +7,7 @@ import MetricCard from './MetricCard';
 import CallVolumeChart from './Charts/CallVolumeChart';
 import DurationTrendChart from './Charts/DurationTrendChart';
 import AverageMessagesChart from './Charts/AverageMessagesChart';
+import HangupRateChart from './Charts/HangupRateChart';
 import CallCategoriesChart from './Charts/CallCategoriesChart';
 import ConversationsTable from './ConversationsTable';
 import LoadingSpinner from './LoadingSpinner';
@@ -180,6 +181,7 @@ export default function AgentDetailModal({
           <CallVolumeChart data={dailyMetrics} />
           <DurationTrendChart data={dailyMetrics} />
           <AverageMessagesChart data={dailyMetrics} />
+          <HangupRateChart data={dailyMetrics} />
         </div>
 
         {/* Call Categories Chart */}

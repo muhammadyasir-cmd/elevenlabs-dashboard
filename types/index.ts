@@ -37,6 +37,7 @@ export interface DailyMetric {
   avgDuration: number;
   avgMessages: number;
   successRate: number;
+  hangupRate?: number;
 }
 
 export interface PaginationInfo {

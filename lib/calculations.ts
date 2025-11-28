@@ -87,6 +87,7 @@ export function calculateDailyMetrics(
         avgDuration: 0,
         avgMessages: 0,
         successRate: 0,
+        hangupRate: 0,
       });
       return;
     }
@@ -100,12 +101,19 @@ export function calculateDailyMetrics(
     const successCount = dayConversations.filter(c => c.call_successful === 'success').length;
     const successRate = parseFloat(((successCount / dayConversations.length) * 100).toFixed(1));
 
+    // Calculate hangup rate: call is a hangup if call_duration_secs < 15 AND message_count < 2
+    const hangupCount = dayConversations.filter(
+      c => c.call_duration_secs < 15 && c.message_count < 2
+    ).length;
+    const hangupRate = parseFloat(((hangupCount / dayConversations.length) * 100).toFixed(1));
+
     dailyMetrics.push({
       date,
       conversationCount: dayConversations.length,
       avgDuration,
       avgMessages,
       successRate,
+      hangupRate,
     });
   });
 

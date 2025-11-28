@@ -1,6 +1,6 @@
 # ElevenLabs Agent Performance Dashboard – Complete System Documentation
 
-**Last Updated:** 2025-01-XX (Updated with call category details modal, clickable categories, and agent-specific filtering)  
+**Last Updated:** 2025-01-XX (Updated with tooltip styling fix for Call Categories chart)  
 **Project Path:** `/Users/yasir/Desktop/Web tracking portal new`
 
 ---
@@ -940,6 +940,11 @@ All chart components use **Recharts** library and are styled for dark theme.
 - Shows count and percentage
 - Table below chart with detailed breakdown
 - Total calls display
+- **Tooltip Styling**:
+  - Dark background with white text for optimal readability
+  - `contentStyle`: Dark semi-transparent background (`rgba(31, 41, 55, 0.9)`) with white text (`#ffffff`)
+  - `labelStyle`: White text for labels
+  - `itemStyle`: White text for items
 - **Clickable Interaction**:
   - Click on any bar to view call titles for that category
   - Click on any table row to view call titles for that category
@@ -1412,6 +1417,21 @@ export interface CallCategory {
 - `/components/AgentDetailModal.tsx`: Added call categories chart with filtering
 
 **Result**: Users can now drill down into categories to see individual call titles, with proper filtering based on context (main dashboard vs agent modal).
+
+### ✅ Tooltip Text Color Fix
+
+**Problem**: Tooltip text in Call Categories chart was not readable against dark background.
+
+**Solution**: Updated tooltip styling in `CallCategoriesChart.tsx`:
+- Added `color: '#ffffff'` to `contentStyle` for white text
+- Added `labelStyle={{ color: '#ffffff' }}` for white label text
+- Added `itemStyle={{ color: '#ffffff' }}` for white item text
+- Maintained dark semi-transparent background (`rgba(31, 41, 55, 0.9)`)
+
+**Files Updated**:
+- `/components/Charts/CallCategoriesChart.tsx`: Updated Tooltip component styling
+
+**Result**: Tooltip text is now white and easily readable against the dark background when hovering over category bars.
 
 ### 🎨 UI Features
 
