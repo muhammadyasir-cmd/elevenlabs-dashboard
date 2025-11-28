@@ -88,7 +88,7 @@ export default function Dashboard() {
 
       // Sort metrics by totalConversations (call volume) in descending order
       const sortedMetrics = (metricsData.metrics || []).sort(
-        (a, b) => b.totalConversations - a.totalConversations
+        (a: AgentMetrics, b: AgentMetrics) => b.totalConversations - a.totalConversations
       );
 
       setAgents(agentsData.agents || []);
