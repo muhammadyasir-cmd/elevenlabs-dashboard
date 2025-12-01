@@ -1,7 +1,7 @@
 # ElevenLabs Agent Performance Dashboard – Complete System Documentation
 
-**Last Updated:** 2025-01-XX (Updated with tooltip styling fix for Call Categories chart)  
-**Project Path:** `/Users/yasir/Desktop/Web tracking portal new`
+**Last Updated:** 2025-01-XX (Updated with new 7-category structure and hangup detection logic)  
+**Project Path:** `/Users/yasir/Desktop/Web tracking portal new 2`
 
 ---
 
@@ -29,7 +29,7 @@ The **ElevenLabs Agent Performance Dashboard** is a Next.js web application desi
 - **Agent Comparison**: Compare multiple agents side-by-side with aggregated statistics
 - **Detailed Insights**: Drill down into individual agent performance with charts, breakdowns, and conversation tables
 - **Data Visualization**: Interactive charts showing call volumes, duration trends, status distributions, and success rates
-- **Call Categorization**: Automatic categorization of all calls into 11 predefined categories using comprehensive fuzzy matching with automotive shop terminology
+- **Call Categorization**: Automatic categorization of all calls into 7 predefined categories using comprehensive fuzzy matching with automotive shop terminology and hangup detection logic
 
 ### Technology Stack
 
@@ -156,24 +156,26 @@ This approach ensures **accurate metrics** even with large datasets.
 
 ### Call Categorization
 
-The `/api/call-categories` endpoint categorizes ALL historical conversations (no date filtering) into 11 predefined categories:
+The `/api/call-categories` endpoint categorizes ALL historical conversations (no date filtering) into 7 predefined categories:
 
-1. **Fuzzy Matching**: Uses comprehensive keyword matching and similarity scoring with automotive shop terminology
-2. **Categories**: 
-   - Appointment Scheduling
-   - Service Status Inquiries
-   - Pricing and Quotes
-   - Vehicle Diagnostics/Maintenance
-   - Parts and Repairs
-   - Billing and Payments
-   - General Information
-   - Customer Service Requests
-   - Vehicle Logistics
-   - Technical and Miscellaneous
-   - Others (catch-all)
-3. **Pagination**: Fetches all conversations with pagination to handle 1000+ records
-4. **Cache-Busting**: Uses `force-dynamic` and `revalidate: 0` to ensure fresh data
-5. **Similarity Threshold**: 0.15 (lowered from 0.2 for more aggressive matching)
+1. **Hangup Detection (Priority)**: Checks duration < 15 seconds AND message_count < 3 FIRST before any keyword matching
+2. **Fuzzy Matching**: Uses comprehensive keyword matching and similarity scoring with automotive shop terminology
+3. **Categories**: 
+   - Hangups (duration-based + keyword-based)
+   - Revenue Opportunity (service-related keywords get priority)
+   - Repair Status & Shop Updates
+   - General Info & Customer Service
+   - Logistics, Billing & Other
+   - Forwarded to Advisor
+   - System / Other (catch-all)
+4. **Categorization Order**:
+   - FIRST: Check duration < 15s AND messages < 3 → Hangups
+   - SECOND: Check service-related keywords → Revenue Opportunity (priority)
+   - THIRD: Check other category keywords
+   - LAST: Default to "System / Other"
+5. **Pagination**: Fetches all conversations with pagination to handle 1000+ records
+6. **Cache-Busting**: Uses `force-dynamic` and `revalidate: 0` to ensure fresh data
+7. **Similarity Threshold**: 0.15 (maintained for consistent matching)
 
 ---
 
@@ -527,7 +529,7 @@ const metrics = await Promise.all(metricsPromises);
 ```
 
 #### `app/api/call-categories/route.ts` ⭐ **Call Categorization Endpoint**
-**Purpose**: Categorizes conversations into 11 predefined categories using comprehensive fuzzy matching with automotive shop terminology.
+**Purpose**: Categorizes conversations into 7 predefined categories using hangup detection logic and comprehensive fuzzy matching with automotive shop terminology.
 
 **Endpoint**: `GET /api/call-categories?agent_id=optional&start_date=optional&end_date=optional`
 
@@ -551,39 +553,58 @@ const metrics = await Promise.all(metricsPromises);
    - If `start_date` and `end_date` provided: Filters by date range
    - If no parameters: Fetches ALL conversations (no filtering)
 3. Fetches conversations with pagination (handles 1000+ rows)
-4. Uses comprehensive fuzzy matching algorithm to categorize each conversation based on `call_summary_title`
+4. Categorizes each conversation using `categorizeCall()` function:
+   - **FIRST**: Checks duration < 15s AND message_count < 3 → Hangups (runs BEFORE keyword matching)
+   - **SECOND**: Checks service-related keywords → Revenue Opportunity (priority)
+   - **THIRD**: Checks other category keywords
+   - **LAST**: Defaults to "System / Other" if no match
 5. Returns category counts and percentages sorted by count (descending)
 
-**Categories** (11 total):
-1. **Appointment Scheduling**: schedule, book, appointment, reservation, time slot, availability
-2. **Service Status Inquiries**: status, ready, progress, completion, check status, when ready
-3. **Pricing and Quotes**: price, cost, quote, estimate, how much, pricing inquiry
-4. **Vehicle Diagnostics/Maintenance**: diagnostic, check, inspection, maintenance, oil change, tire rotation, check engine light
-5. **Parts and Repairs**: parts, repair, fix, replace, broken, damage, component
-6. **Billing and Payments**: billing, bill, payment, invoice, credit card, receipt, balance
-7. **General Information**: information, info, question, inquiry, help, greeting, intro, hours, location, address, directions
-8. **Customer Service Requests**: transfer, callback, message, speak, talk, agent, representative, human, manager, connect, reach
-9. **Vehicle Logistics**: pickup, delivery, drop off, tow, transport, location, retrieve
-10. **Technical and Miscellaneous**: technical, error, incomplete, silent, empty, wrong number, test, spam, disconnected, hang up
-11. **Others**: Catch-all category for calls that don't match any category (similarity score < 0.15)
+**Categories** (7 total):
+1. **Hangups**: 
+   - Duration-based: duration < 15 seconds AND message_count < 3 (priority check)
+   - Keyword-based: silent, incomplete, no response, disconnected, hang up, hangup, empty, abandoned, noise only, robocall, spam call, immediate disconnect
+2. **Revenue Opportunity**: 
+   - Service-related keywords get PRIORITY (even if general info mentioned)
+   - Keywords: appointment, schedule, book, service, repair, brake, oil change, tire, alignment, AC, diagnostic, symptom, noise, quote, price, cost, estimate, maintenance, tune-up, inspection, check, parts, warranty, alternator, battery, transmission, engine, suspension, exhaust, fluid, filter, belt, hose, spark plug, radiator, coolant, timing, clutch, strut, shock, cv joint, wheel bearing, serpentine, thermostat, water pump, fuel pump, starter, catalytic converter, muffler, rotor, pad, caliper, master cylinder, do you do, can you, availability, fixing, looking for service
+3. **Repair Status & Shop Updates**: 
+   - Keywords: ready, status, update, done, finished, complete, progress, diagnosed, diagnosis result, pick up ready, when ready, eta, how long, waiting, callback about repair, repair update
+4. **General Info & Customer Service**: 
+   - Keywords: hours, open, close, location, address, directions, where located, holiday, weekend hours, shuttle, contact, phone number, email, fax, general inquiry, information, help, question about business
+5. **Logistics, Billing & Other**: 
+   - Keywords: invoice, receipt, billing, payment, charge, paid, insurance, paperwork, tow, pickup request, dropoff logistics, copy of invoice, transaction, payment method, credit card
+6. **Forwarded to Advisor**: 
+   - Keywords: transfer, speak to, talk to, human, representative, agent, advisor, person, staff member, connect me, put me through, escalate, manager, technician name
+7. **System / Other**: 
+   - Catch-all category for calls that don't match any category (similarity score < 0.15)
+   - Keywords: unclassifiable, error, garbled, test, system issue, unclear intent, cannot determine
 
-**Fuzzy Matching Algorithm**:
-- **Comprehensive Keyword Arrays**: Each category has extensive keyword lists covering:
-  - Core terms and synonyms
-  - Common phrases and variations
-  - Automotive shop-specific terminology
-  - Abbreviations and variations
-  - Related terms and patterns
-- **Similarity Scoring**: Uses word overlap calculation
-- **Similarity Threshold**: 0.15 (lowered from 0.2 for more aggressive matching)
-- **Category Name Matching**: Also checks similarity to category name itself (threshold 0.3)
-- **Fallback**: Falls back to "Others" if no good match found (score < 0.15)
+**Categorization Algorithm**:
+1. **Hangup Detection (Priority)**: 
+   - Checks `call_duration_secs < 15 AND message_count < 3` FIRST
+   - If true, immediately returns "Hangups" (no keyword matching)
+   - This ensures short calls with few messages are always categorized as hangups
+2. **Revenue Opportunity Priority**: 
+   - Service-related keywords are checked SECOND (before other categories)
+   - Ensures service-related calls go to "Revenue Opportunity" even if general info is mentioned
+3. **Fuzzy Matching**: 
+   - **Comprehensive Keyword Arrays**: Each category has extensive keyword lists covering:
+     - Core terms and synonyms
+     - Common phrases and variations
+     - Automotive shop-specific terminology
+     - Abbreviations and variations
+     - Related terms and patterns
+   - **Similarity Scoring**: Uses word overlap calculation
+   - **Similarity Threshold**: 0.15 (maintained for consistent matching)
+   - **Category Name Matching**: Also checks similarity to category name itself (threshold 0.3)
+4. **Fallback**: Falls back to "System / Other" if no good match found (score < 0.15)
 
 **Keyword Examples**:
-- **Appointment Scheduling**: 40+ keywords including "schedule", "book", "appointment", "reservation", "time slot", "availability", "schedule service", "book oil change", etc.
-- **General Information**: 30+ keywords including "greeting", "hello", "welcome", "intro", "virtual assistant", "hours", "location", "address", "directions", etc.
-- **Customer Service Requests**: 50+ keywords including "transfer", "callback", "message", "speak to", "talk to", "agent", "representative", "human", "manager", etc.
-- **Technical and Miscellaneous**: 30+ keywords including "incomplete", "silent", "empty", "no response", "wrong number", "test", "spam", "disconnected", "hang up", etc.
+- **Revenue Opportunity**: 50+ keywords including "appointment", "schedule", "book", "service", "repair", "brake", "oil change", "tire", "alignment", "diagnostic", "quote", "price", "cost", "estimate", "maintenance", "parts", "warranty", and many automotive-specific terms
+- **Repair Status & Shop Updates**: Keywords like "ready", "status", "update", "done", "finished", "complete", "progress", "diagnosed", "eta", "how long", "waiting"
+- **General Info & Customer Service**: Keywords like "hours", "open", "close", "location", "address", "directions", "contact", "phone number", "email", "general inquiry", "information", "help"
+- **Logistics, Billing & Other**: Keywords like "invoice", "receipt", "billing", "payment", "charge", "paid", "insurance", "tow", "pickup request", "credit card"
+- **Forwarded to Advisor**: Keywords like "transfer", "speak to", "talk to", "human", "representative", "agent", "advisor", "person", "connect me", "escalate", "manager"
 
 **Response Format**:
 ```json
@@ -591,14 +612,19 @@ const metrics = await Promise.all(metricsPromises);
   "totalCalls": 8420,
   "categories": [
     {
-      "category": "Appointment Scheduling",
-      "count": 2341,
-      "percentage": 27.8
+      "category": "Revenue Opportunity",
+      "count": 3421,
+      "percentage": 40.6
     },
     {
-      "category": "Service Status Inquiries",
+      "category": "Hangups",
       "count": 1892,
       "percentage": 22.5
+    },
+    {
+      "category": "Repair Status & Shop Updates",
+      "count": 856,
+      "percentage": 10.2
     }
   ]
 }
@@ -606,23 +632,49 @@ const metrics = await Promise.all(metricsPromises);
 
 **Key Code**:
 ```typescript
-// Categorize a call summary title using fuzzy matching
-function categorizeCall(title: string | null | undefined): string {
+// Categorize a call using duration/message count and fuzzy matching
+function categorizeCall(conversation: ConversationForCategorization): string {
+  const title = conversation.call_summary_title;
+  const duration = conversation.call_duration_secs || 0;
+  const messageCount = conversation.message_count || 0;
+  
+  // FIRST: Check for Hangups (duration < 15 seconds AND message count < 3)
+  // This runs BEFORE any keyword matching
+  if (duration < 15 && messageCount < 3) {
+    return 'Hangups';
+  }
+  
+  // If not a hangup, proceed with keyword matching logic
   if (!title || title.trim() === '') {
-    return 'Others';
+    return 'System / Other';
   }
   
   const normalizedTitle = title.toLowerCase().trim();
-  let bestMatch = 'Others';
+  let bestMatch = 'System / Other';
   let bestScore = 0;
   
-  // Check each category's keywords
+  // SECOND: Check Revenue Opportunity FIRST (service-related keywords get priority)
+  // This ensures service-related calls go to Revenue Opportunity even if general info is mentioned
+  const revenueKeywords = CATEGORY_KEYWORDS['Revenue Opportunity'] || [];
+  for (const keyword of revenueKeywords) {
+    if (normalizedTitle.includes(keyword.toLowerCase())) {
+      const score = calculateSimilarity(normalizedTitle, keyword);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = 'Revenue Opportunity';
+      }
+    }
+  }
+  
+  // THIRD: Check other category keywords (excluding Hangups and System / Other)
   for (const category of CATEGORIES) {
-    if (category === 'Others') continue; // Skip catch-all
+    if (category === 'Hangups' || category === 'System / Other' || category === 'Revenue Opportunity') {
+      continue; // Skip already checked categories
+    }
     
-    const keywords = CATEGORY_KEYWORDS[category];
+    const keywords = CATEGORY_KEYWORDS[category] || [];
     
-    // Check direct keyword matches
+    // Keyword matching logic
     for (const keyword of keywords) {
       if (normalizedTitle.includes(keyword.toLowerCase())) {
         const score = calculateSimilarity(normalizedTitle, keyword);
@@ -641,9 +693,9 @@ function categorizeCall(title: string | null | undefined): string {
     }
   }
   
-  // If no good match found, use Others (threshold: 0.15)
+  // Require minimum threshold (SIMILARITY_THRESHOLD = 0.15)
   if (bestScore < 0.15) {
-    return 'Others';
+    return 'System / Other';
   }
   
   return bestMatch;
@@ -706,7 +758,7 @@ function categorizeCall(title: string | null | undefined): string {
 **Endpoint**: `GET /api/call-categories/details?category=xxx&agent_id=optional&start_date=optional&end_date=optional`
 
 **Query Parameters**:
-- `category` (required): Category name to filter by
+- `category` (required): Category name to filter by (must match one of the 7 categories)
 - `agent_id` (optional): Filter conversations by specific agent
 - `start_date` (optional): Filter conversations from this date (YYYY-MM-DD)
 - `end_date` (optional): Filter conversations to this date (YYYY-MM-DD)
@@ -716,13 +768,15 @@ function categorizeCall(title: string | null | undefined): string {
 2. Builds Supabase query with optional filters (agent_id, date range)
 3. Fetches ALL matching conversations with pagination
 4. Filters conversations using the same `categorizeCall()` function to match the requested category
+   - Uses same hangup detection logic (duration < 15s AND messages < 3)
+   - Uses same keyword matching with Revenue Opportunity priority
 5. Sorts by timestamp descending (newest first)
 6. Returns conversation details: conversation_id, call_summary_title, start_time_unix_secs, agent_name
 
 **Response Format**:
 ```json
 {
-  "category": "Appointment Scheduling",
+  "category": "Revenue Opportunity",
   "totalTitles": 2341,
   "conversations": [
     {
@@ -736,10 +790,11 @@ function categorizeCall(title: string | null | undefined): string {
 ```
 
 **Key Features**:
-- Uses same categorization logic as main endpoint (copied `categorizeCall()` function)
+- Uses same categorization logic as main endpoint (copied `categorizeCall()` function with hangup detection)
 - Supports filtering by agent and date range for context-aware results
 - Pagination handles 1000+ conversations
 - Returns sorted list (newest first)
+- Validates category name matches one of the 7 categories
 
 #### `app/api/test/route.ts`
 **Purpose**: Diagnostic endpoint to test Supabase connectivity.
@@ -1050,6 +1105,7 @@ All chart components use **Recharts** library and are styled for dark theme.
    - Calculates daily metrics for each day in range
    - Returns array sorted by date
    - Handles days with no conversations (returns 0 values)
+   - **Hangup Rate Calculation**: Uses `call_duration_secs < 15 AND message_count < 3` (matches categorization logic)
 
 #### `lib/utils.ts`
 **Purpose**: General utility functions.
@@ -1108,6 +1164,7 @@ export interface DailyMetric {
   avgDuration: number;
   avgMessages: number;
   successRate: number;
+  hangupRate?: number;  // Percentage of calls with duration < 15s AND message_count < 3
 }
 
 export interface PaginationInfo {
@@ -1223,7 +1280,7 @@ export interface CallCategory {
 ---
 
 ### `GET /api/call-categories`
-**Purpose**: Get categorized breakdown of conversations into 11 automotive-specific categories.
+**Purpose**: Get categorized breakdown of conversations into 7 automotive-specific categories with hangup detection.
 
 **Query Parameters** (all optional):
 - `agent_id` (optional): Filter conversations by specific agent
@@ -1237,9 +1294,11 @@ export interface CallCategory {
 - **With parameters**: Returns filtered conversations by agent and/or date range (for agent detail modals)
 - Cache-busting headers (`force-dynamic`, `revalidate: 0`)
 - Pagination to handle 1000+ records
-- Comprehensive fuzzy matching with 30-50+ keywords per category
-- Similarity threshold: 0.15 (aggressive matching)
-- 11 categories: Appointment Scheduling, Service Status Inquiries, Pricing and Quotes, Vehicle Diagnostics/Maintenance, Parts and Repairs, Billing and Payments, General Information, Customer Service Requests, Vehicle Logistics, Technical and Miscellaneous, Others
+- **Hangup Detection**: Checks duration < 15s AND message_count < 3 FIRST (before keyword matching)
+- **Revenue Opportunity Priority**: Service-related keywords checked SECOND (before other categories)
+- Comprehensive fuzzy matching with extensive keywords per category
+- Similarity threshold: 0.15 (maintained for consistent matching)
+- 7 categories: Hangups, Revenue Opportunity, Repair Status & Shop Updates, General Info & Customer Service, Logistics Billing & Other, Forwarded to Advisor, System / Other
 
 ---
 
@@ -1341,42 +1400,56 @@ export interface CallCategory {
 
 **Result**: All calls automatically categorized and displayed in bar chart.
 
-### ✅ Enhanced Call Categorization (11 Categories)
+### ✅ Enhanced Call Categorization (7 Categories with Hangup Detection)
 
-**Problem**: Original 10 categories were too generic and didn't match automotive shop terminology.
-
-**Solution**: 
-- Replaced 10 categories with 11 automotive-specific categories:
-  1. Appointment Scheduling
-  2. Service Status Inquiries
-  3. Pricing and Quotes
-  4. Vehicle Diagnostics/Maintenance
-  5. Parts and Repairs
-  6. Billing and Payments
-  7. General Information
-  8. Customer Service Requests
-  9. Vehicle Logistics
-  10. Technical and Miscellaneous
-  11. Others (catch-all)
-- Created comprehensive keyword arrays (30-50+ keywords per category)
-- Added automotive shop-specific terminology
-- Included common phrases, variations, and abbreviations
-
-**Result**: Better categorization accuracy with automotive context.
-
-### ✅ Aggressive Keyword Matching
-
-**Problem**: 62.6% of calls falling into "Others" category due to insufficient keyword matching.
+**Problem**: Original 11 categories were too granular and didn't prioritize service opportunities or detect hangups effectively.
 
 **Solution**: 
-- Expanded keyword arrays significantly:
-  - **General Information**: Added greeting, intro, hello, welcome, hours, location, address, directions
-  - **Customer Service Requests**: Added transfer, callback, message, speak, talk, agent, representative, human, manager, connect, reach
-  - **Technical and Miscellaneous**: Added incomplete, silent, empty, no response, wrong number, test, spam, disconnected, hang up
-- Lowered similarity threshold from 0.2 to 0.15 for more aggressive matching
-- Added comprehensive variations, synonyms, and common phrases
+- Replaced 11 categories with 7 streamlined categories:
+  1. **Hangups** (duration-based + keyword-based)
+  2. **Revenue Opportunity** (service-related keywords with priority)
+  3. **Repair Status & Shop Updates**
+  4. **General Info & Customer Service**
+  5. **Logistics, Billing & Other**
+  6. **Forwarded to Advisor**
+  7. **System / Other** (catch-all)
+- **Hangup Detection Logic**: Checks `duration < 15s AND message_count < 3` FIRST before any keyword matching
+- **Revenue Opportunity Priority**: Service-related keywords checked SECOND to ensure service calls are captured even if general info is mentioned
+- Created comprehensive keyword arrays for all 7 categories
+- Merged service-related categories (Appointment Scheduling, Pricing and Quotes, Vehicle Diagnostics/Maintenance, Parts and Repairs) into "Revenue Opportunity"
+- Maintained automotive shop-specific terminology
+- Updated hangup rate calculation in `lib/calculations.ts` to match categorization logic
 
-**Result**: Reduced "Others" category from 62.6% to under 15% by capturing generic titles like "virtual assistant intro", "greeting", "transfer request", "take message", "incomplete call", etc.
+**Files Updated**:
+- `/app/api/call-categories/route.ts`: Updated categories, keywords, and categorization logic
+- `/app/api/call-categories/details/route.ts`: Updated to match new 7-category structure
+- `/lib/calculations.ts`: Updated hangup rate calculation to use `message_count < 3` (was `< 2`)
+
+**Result**: More accurate categorization with priority-based logic, better hangup detection, and streamlined categories that prioritize revenue opportunities.
+
+### ✅ New 7-Category Structure with Hangup Detection
+
+**Problem**: Previous 11-category structure was too granular and didn't effectively detect hangups or prioritize revenue opportunities.
+
+**Solution**: 
+- **Implemented Hangup Detection**: 
+  - Checks `call_duration_secs < 15 AND message_count < 3` FIRST (before keyword matching)
+  - Ensures short calls with few messages are automatically categorized as hangups
+  - Updated hangup rate calculation in `lib/calculations.ts` to match (changed from `< 2` to `< 3`)
+- **Revenue Opportunity Priority**:
+  - Service-related keywords checked SECOND (before other categories)
+  - Ensures service calls go to "Revenue Opportunity" even if general info is mentioned
+  - Merged all service-related categories into one priority category
+- **Streamlined Categories**:
+  - Reduced from 11 to 7 categories for better clarity
+  - Each category has focused, comprehensive keyword lists
+  - Maintained similarity threshold at 0.15 for consistent matching
+- **Updated Both Endpoints**:
+  - `/app/api/call-categories/route.ts`: Main categorization endpoint
+  - `/app/api/call-categories/details/route.ts`: Category details endpoint
+  - Both use identical categorization logic
+
+**Result**: More accurate categorization with automatic hangup detection, prioritized revenue opportunities, and streamlined category structure that better reflects business needs.
 
 ### ✅ Cache-Busting for Call Categories
 

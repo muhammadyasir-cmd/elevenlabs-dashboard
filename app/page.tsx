@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { signOut } from 'next-auth/react';
 import { Agent, AgentMetrics, DateRange, CallCategory } from '@/types';
 import { getDateRange } from '@/lib/supabase';
 import DateRangePicker from '@/components/DateRangePicker';
@@ -19,18 +21,12 @@ export default function Dashboard() {
     console.log('🔵 Current year:', new Date().getFullYear());
     return range;
   });
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [metrics, setMetrics] = useState<AgentMetrics[]>([]);
-  const [callCategories, setCallCategories] = useState<CallCategory[]>([]);
-  const [callCategoriesTotal, setCallCategoriesTotal] = useState<number>(0);
-  const [callCategoriesLoading, setCallCategoriesLoading] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<{ id: string; name: string } | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const itemsPerPage = 20;
 
   const addDebugInfo = useCallback((message: string) => {
@@ -44,115 +40,108 @@ export default function Dashboard() {
     addDebugInfo('Component mounted');
   }, [addDebugInfo]);
 
-  const fetchData = useCallback(async () => {
-    console.log('🟢 fetchData called with dateRange:', dateRange);
-    addDebugInfo('Starting data fetch...');
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const agentsUrl = `/api/agents?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`;
-      const metricsUrl = `/api/metrics?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`;
-      
-      console.log('🟢 Fetching agents from:', agentsUrl);
-      console.log('🟢 Fetching metrics from:', metricsUrl);
-      addDebugInfo(`Fetching: ${agentsUrl}`);
-      
-      const [agentsRes, metricsRes] = await Promise.all([
-        fetch(agentsUrl),
-        fetch(metricsUrl),
-      ]);
-
-      console.log('🟢 Agents response status:', agentsRes.status, agentsRes.ok);
-      console.log('🟢 Metrics response status:', metricsRes.status, metricsRes.ok);
-      addDebugInfo(`Agents: ${agentsRes.status}, Metrics: ${metricsRes.status}`);
-
-      if (!agentsRes.ok) {
-        const errorText = await agentsRes.text();
-        console.error('❌ Agents API error:', errorText);
-        throw new Error(`Agents API failed: ${agentsRes.status} - ${errorText}`);
-      }
-
-      if (!metricsRes.ok) {
-        const errorText = await metricsRes.text();
-        console.error('❌ Metrics API error:', errorText);
-        throw new Error(`Metrics API failed: ${metricsRes.status} - ${errorText}`);
-      }
-
-      const agentsData = await agentsRes.json();
-      const metricsData = await metricsRes.json();
-
-      console.log('🟢 Agents data received:', agentsData);
-      console.log('🟢 Metrics data received:', metricsData);
-      addDebugInfo(`Agents: ${agentsData.agents?.length || 0}, Metrics: ${metricsData.metrics?.length || 0}`);
-
-      // Sort metrics by totalConversations (call volume) in descending order
-      const sortedMetrics = (metricsData.metrics || []).sort(
-        (a: AgentMetrics, b: AgentMetrics) => b.totalConversations - a.totalConversations
+  // React Query hooks for data fetching
+  const {
+    data: agentsData,
+    isLoading: agentsLoading,
+    error: agentsError,
+    refetch: refetchAgents,
+  } = useQuery({
+    queryKey: ['agents', dateRange.startDate, dateRange.endDate],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/agents?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`
       );
+      if (!response.ok) {
+        throw new Error('Failed to fetch agents');
+      }
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
 
-      setAgents(agentsData.agents || []);
-      setMetrics(sortedMetrics);
-      setLastUpdated(new Date());
-      setCurrentPage(1); // Reset to first page when data changes
-      addDebugInfo('Data loaded successfully');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      console.error('❌ Error in fetchData:', err);
-      addDebugInfo(`ERROR: ${errorMessage}`);
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-      addDebugInfo('Fetch completed');
-    }
-  }, [dateRange, addDebugInfo]);
+  const {
+    data: metricsData,
+    isLoading: metricsLoading,
+    error: metricsError,
+    refetch: refetchMetrics,
+  } = useQuery({
+    queryKey: ['metrics', dateRange.startDate, dateRange.endDate],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/metrics?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch metrics');
+      }
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
 
-  // Fetch call categories (ALL historical data, no date filtering)
-  const fetchCallCategories = useCallback(async () => {
-    console.log('🟢 fetchCallCategories called');
-    setCallCategoriesLoading(true);
-    try {
+  const {
+    data: categoriesData,
+    isLoading: categoriesLoading,
+    refetch: refetchCategories,
+  } = useQuery({
+    queryKey: ['call-categories'],
+    queryFn: async () => {
       const response = await fetch('/api/call-categories');
       if (!response.ok) {
         throw new Error('Failed to fetch call categories');
       }
-      const data = await response.json();
-      setCallCategories(data.categories || []);
-      setCallCategoriesTotal(data.totalCalls || 0);
-      console.log('🟢 Call categories fetched:', data);
-    } catch (err) {
-      console.error('❌ Error fetching call categories:', err);
-      // Don't set error state - categories are supplementary data
-    } finally {
-      setCallCategoriesLoading(false);
-    }
-  }, []);
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
 
+  // Derived state
+  const agents = agentsData?.agents || [];
+  const metrics = (metricsData?.metrics || []).sort(
+    (a: AgentMetrics, b: AgentMetrics) => b.totalConversations - a.totalConversations
+  );
+  const callCategories = categoriesData?.categories || [];
+  const callCategoriesTotal = categoriesData?.totalCalls || 0;
+  const loading = agentsLoading || metricsLoading;
+  const error = agentsError || metricsError;
+
+  // Reset to first page when data changes
   useEffect(() => {
-    console.log('🟢 useEffect triggered, calling fetchData');
-    addDebugInfo('useEffect: fetchData triggered');
-    fetchData();
-    fetchCallCategories();
-  }, [fetchData, fetchCallCategories, addDebugInfo]);
-
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(() => {
-        console.log('🟢 Auto-refresh triggered');
-        addDebugInfo('Auto-refresh triggered');
-        fetchData();
-        fetchCallCategories(); // Also refresh categories
-      }, 30000);
-
-      return () => {
-        console.log('🟢 Clearing auto-refresh interval');
-        clearInterval(interval);
-      };
+    if (metrics.length > 0) {
+      setCurrentPage(1);
     }
-  }, [autoRefresh, fetchData, fetchCallCategories, addDebugInfo]);
+  }, [metrics.length]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
+
+  const handleRefresh = useCallback(() => {
+    refetchAgents();
+    refetchMetrics();
+    refetchCategories();
+    addDebugInfo('Manual refresh triggered');
+  }, [refetchAgents, refetchMetrics, refetchCategories, addDebugInfo]);
+
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: '/login' });
+  };
 
   const handleViewDetails = (agentId: string) => {
-    const agent = agents.find(a => a.agent_id === agentId);
+    const agent = agents.find((a: Agent) => a.agent_id === agentId);
     if (agent) {
       setSelectedAgent({ id: agentId, name: agent.agent_name });
     }
@@ -161,6 +150,8 @@ export default function Dashboard() {
   const handleCloseModal = () => {
     setSelectedAgent(null);
   };
+
+  const lastUpdated = new Date();
 
   console.log('🔵 Render state:', { loading, error, agentsCount: agents.length, metricsCount: metrics.length });
 
@@ -173,7 +164,7 @@ export default function Dashboard() {
           <div className="bg-gray-900 p-3 rounded mt-2 max-h-48 overflow-y-auto">
             <div className="text-yellow-300 font-mono space-y-1">
               <div>Loading: {loading ? 'YES' : 'NO'}</div>
-              <div>Error: {error || 'None'}</div>
+              <div>Error: {error ? (error instanceof Error ? error.message : String(error)) : 'None'}</div>
               <div>Agents: {agents.length}</div>
               <div>Metrics: {metrics.length}</div>
               <div>Date Range: {dateRange.startDate} to {dateRange.endDate}</div>
@@ -211,12 +202,46 @@ export default function Dashboard() {
                 Auto-refresh (30s)
               </label>
               <button
-                onClick={fetchData}
+                onClick={handleRefresh}
                 disabled={loading}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Refreshing...' : 'Refresh'}
               </button>
+              
+              {/* Top-right menu */}
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="p-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                  aria-label="Menu"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  </svg>
+                </button>
+                
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-colors"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -235,7 +260,7 @@ export default function Dashboard() {
           <CallCategoriesChart
             data={callCategories}
             totalCalls={callCategoriesTotal}
-            loading={callCategoriesLoading}
+            loading={categoriesLoading}
           />
         </div>
 
@@ -243,14 +268,14 @@ export default function Dashboard() {
         {error && (
           <div className="bg-red-900/20 border border-red-700 rounded-lg p-6 mb-8">
             <h3 className="text-red-400 font-bold text-lg mb-2">❌ Error</h3>
-            <p className="text-red-300 mb-4">{error}</p>
+            <p className="text-red-300 mb-4">{error instanceof Error ? error.message : String(error)}</p>
             <div className="bg-red-950/50 p-4 rounded mb-4">
               <p className="text-red-200 text-sm">
                 Check the browser console (F12) and server logs for more details.
               </p>
             </div>
             <button
-              onClick={fetchData}
+              onClick={handleRefresh}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded"
             >
               Retry
@@ -277,7 +302,7 @@ export default function Dashboard() {
                   Date range: {dateRange.startDate} to {dateRange.endDate}
                 </p>
                 <button
-                  onClick={fetchData}
+                  onClick={handleRefresh}
                   className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded"
                 >
                   Retry
@@ -303,7 +328,7 @@ export default function Dashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-300">
                       {metrics
                         .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                        .map((metric) => (
+                        .map((metric: AgentMetrics) => (
                           <AgentCard
                             key={metric.agent_id}
                             metrics={metric}

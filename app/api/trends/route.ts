@@ -3,6 +3,9 @@ import { supabase, dateToUnix } from '@/lib/supabase';
 import { calculateDailyMetrics } from '@/lib/calculations';
 import { Conversation } from '@/types';
 
+// Cache for 15 minutes
+export const revalidate = 900;
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
