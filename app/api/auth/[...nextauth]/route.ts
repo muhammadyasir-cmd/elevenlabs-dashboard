@@ -16,12 +16,12 @@ const handler = NextAuth({
 
         // Hardcoded credentials check
         if (
-          credentials.email === 'admin@elevenlabs.com' &&
-          credentials.password === 'ElevenLabs2025!'
+          credentials.email === 'engineering@autoleap.com' &&
+          credentials.password === 'Autoleap@Dashbaord12345'
         ) {
           return {
             id: '1',
-            email: 'admin@elevenlabs.com',
+            email: 'engineering@autoleap.com',
             name: 'Admin',
           };
         }
