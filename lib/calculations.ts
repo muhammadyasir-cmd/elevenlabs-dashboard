@@ -101,9 +101,9 @@ export function calculateDailyMetrics(
     const successCount = dayConversations.filter(c => c.call_successful === 'success').length;
     const successRate = parseFloat(((successCount / dayConversations.length) * 100).toFixed(1));
 
-    // Calculate hangup rate: call is a hangup if call_duration_secs < 15 AND message_count < 2
+    // Calculate hangup rate: call is a hangup if call_duration_secs < 15 AND message_count < 3
     const hangupCount = dayConversations.filter(
-      c => c.call_duration_secs < 15 && c.message_count < 2
+      c => c.call_duration_secs < 15 && c.message_count < 3
     ).length;
     const hangupRate = parseFloat(((hangupCount / dayConversations.length) * 100).toFixed(1));
 

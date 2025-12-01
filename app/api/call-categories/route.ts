@@ -11,227 +11,57 @@ interface ConversationForCategorization {
   message_count?: number;
 }
 
-// Fixed 12 categories as specified (added Hangups)
+// New 7-category structure
 const CATEGORIES = [
   'Hangups',
-  'Appointment Scheduling',
-  'Service Status Inquiries',
-  'Pricing and Quotes',
-  'Vehicle Diagnostics/Maintenance',
-  'Parts and Repairs',
-  'Billing and Payments',
-  'General Information',
-  'Customer Service Requests',
-  'Vehicle Logistics',
-  'Technical and Miscellaneous',
-  'Others',
+  'Revenue Opportunity',
+  'Repair Status & Shop Updates',
+  'General Info & Customer Service',
+  'Logistics, Billing & Other',
+  'Forwarded to Advisor',
+  'System / Other',
 ] as const;
 
-// Category keywords for fuzzy matching - Comprehensive automotive shop terminology
+// Category keywords for fuzzy matching - New 7-category structure
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  'Hangups': [], // No keywords needed - uses duration + message count logic
-  'Appointment Scheduling': [
-    // Core appointment terms
-    'appointment', 'appointments', 'schedule', 'scheduled', 'scheduling', 'book', 'booking', 'booked',
-    'reserve', 'reserved', 'reservation', 'reservations', 'appt', 'appts',
-    // Action phrases
-    'make appointment', 'set appointment', 'schedule appointment', 'book appointment', 'make a appointment',
-    'need appointment', 'want appointment', 'would like appointment', 'looking to schedule', 'looking to book',
-    'schedule service', 'book service', 'schedule maintenance', 'book maintenance', 'schedule repair', 'book repair',
-    'schedule oil change', 'book oil change', 'schedule tire', 'book tire', 'schedule inspection', 'book inspection',
-    'schedule an appointment', 'book an appointment', 'make an appointment', 'set up appointment',
-    // Time-related
-    'time slot', 'time slots', 'availability', 'available', 'when available', 'available time', 'next available',
-    'open slot', 'open slots', 'appointment time', 'service time', 'when can i', 'when can we', 'when is', 'what time',
-    'what times', 'available times', 'when are you available', 'when can you', 'when do you have',
-    // Variations
-    'appointment request', 'scheduling request', 'booking request', 'rescheduling', 're-schedule', 'rebook', 're-book',
-    'change appointment', 'modify appointment', 'update appointment', 'cancel appointment', 'reschedule appointment'
+  'Hangups': [
+    // Keyword-based hangup detection (after duration check)
+    'silent', 'incomplete', 'no response', 'disconnected', 'hang up', 'hangup', 'empty', 'abandoned',
+    'noise only', 'robocall', 'spam call', 'immediate disconnect'
   ],
-  'Service Status Inquiries': [
-    // Status core terms
-    'status', 'statuses', 'ready', 'progress', 'completion', 'finished', 'done', 'complete', 'completed',
-    'check', 'checking', 'update', 'updates', 'inquiry', 'inquiries',
-    // Inquiry phrases
-    'status inquiry', 'check status', 'service status', 'work status', 'repair status', 'vehicle status', 'car status',
-    'status update', 'update on', 'how is', 'how are', 'where is', 'where are', 'what is the status',
-    'check on', 'checking on', 'status of', 'status on', 'update on my', 'update on the',
-    // Ready/Completion phrases
-    'is ready', 'when ready', 'will be ready', 'when will it be ready', 'when will be ready', 'ready for pickup',
-    'ready to pick up', 'ready yet', 'is it ready', 'is my car ready', 'is my vehicle ready', 'is my truck ready',
-    'ready now', 'is ready yet', 'not ready', 'still not ready', 'when will ready',
-    // Progress phrases
-    'how long', 'how much longer', 'almost done', 'still working', 'in progress', 'work in progress',
-    'how much time', 'how much more time', 'how much longer will it take', 'when will it be done',
-    // Vehicle-specific
-    'vehicle ready', 'car ready', 'truck ready', 'service ready', 'repair ready', 'work ready',
-    'my vehicle', 'my car', 'my truck', 'the vehicle', 'the car', 'the truck'
+  'Revenue Opportunity': [
+    // Service-related keywords (merged from all service categories)
+    'appointment', 'schedule', 'book', 'service', 'repair', 'brake', 'oil change', 'tire', 'alignment',
+    'AC', 'diagnostic', 'symptom', 'noise', 'quote', 'price', 'cost', 'estimate', 'maintenance',
+    'tune-up', 'inspection', 'check', 'parts', 'warranty', 'alternator', 'battery', 'transmission',
+    'engine', 'suspension', 'exhaust', 'fluid', 'filter', 'belt', 'hose', 'spark plug', 'radiator',
+    'coolant', 'timing', 'clutch', 'strut', 'shock', 'cv joint', 'wheel bearing', 'serpentine',
+    'thermostat', 'water pump', 'fuel pump', 'starter', 'catalytic converter', 'muffler', 'rotor',
+    'pad', 'caliper', 'master cylinder', 'do you do', 'can you', 'availability', 'fixing',
+    'looking for service'
   ],
-  'Pricing and Quotes': [
-    // Core pricing terms
-    'price', 'prices', 'cost', 'costs', 'pricing', 'quote', 'quotes', 'quotation', 'quotations', 'estimate', 'estimates',
-    'priced', 'costing', 'quoted', 'estimated',
-    // Inquiry phrases
-    'price inquiry', 'pricing inquiry', 'quote request', 'estimate request', 'price quote', 'cost estimate',
-    'how much', 'what does it cost', 'how much does it cost', 'how much is', 'what is the price', 'what is the cost',
-    'price for', 'cost for', 'quote for', 'estimate for', 'pricing for', 'what\'s the price', 'what\'s the cost',
-    'need a quote', 'need an estimate', 'want a quote', 'want an estimate', 'looking for quote', 'looking for estimate',
-    'get a quote', 'get an estimate', 'can i get a quote', 'can i get an estimate',
-    // Variations
-    'oil change price', 'tire price', 'repair price', 'service price', 'maintenance price',
-    'oil change cost', 'tire cost', 'repair cost', 'service cost', 'maintenance cost',
-    'oil change quote', 'tire quote', 'repair quote', 'service quote', 'maintenance quote',
-    'oil change estimate', 'tire estimate', 'repair estimate', 'service estimate', 'maintenance estimate',
-    // Fee/Charge terms
-    'fee', 'fees', 'charge', 'charges', 'payment amount', 'total cost', 'total price', 'pricing information',
-    'how much will it cost', 'what will it cost', 'what\'s the total', 'what\'s the total cost'
+  'Repair Status & Shop Updates': [
+    'ready', 'status', 'update', 'done', 'finished', 'complete', 'progress', 'diagnosed',
+    'diagnosis result', 'pick up ready', 'when ready', 'eta', 'how long', 'waiting',
+    'callback about repair', 'repair update'
   ],
-  'Vehicle Diagnostics/Maintenance': [
-    // Diagnostic terms
-    'diagnostic', 'diagnosis', 'diagnose', 'check', 'inspection', 'inspect', 'checked', 'checking',
-    // Maintenance terms
-    'maintenance', 'service', 'tune-up', 'tune up', 'servicing',
-    // Common services
-    'oil change', 'oil', 'tire rotation', 'tire', 'tires', 'brake', 'brakes', 'brake service',
-    'filter', 'filters', 'air filter', 'oil filter', 'battery', 'alignment', 'wheel alignment',
-    // Engine/Vehicle checks
-    'check engine', 'engine light', 'check engine light', 'warning light', 'dashboard light',
-    'engine check', 'vehicle check', 'car check', 'inspection needed', 'needs inspection',
-    // Diagnostic phrases
-    'diagnostic check', 'diagnostic service', 'diagnostic test', 'run diagnostic', 'diagnostic scan',
-    'check codes', 'error codes', 'trouble codes', 'diagnostic codes',
-    // Maintenance phrases
-    'maintenance service', 'routine maintenance', 'preventive maintenance', 'preventative maintenance',
-    'scheduled maintenance', 'regular maintenance', 'service appointment', 'maintenance appointment'
+  'General Info & Customer Service': [
+    'hours', 'open', 'close', 'location', 'address', 'directions', 'where located', 'holiday',
+    'weekend hours', 'shuttle', 'contact', 'phone number', 'email', 'fax', 'general inquiry',
+    'information', 'help', 'question about business'
   ],
-  'Parts and Repairs': [
-    // Core repair terms
-    'repair', 'repairs', 'fix', 'fixed', 'fixing', 'replace', 'replacement', 'replacing',
-    // Parts terms
-    'parts', 'part', 'component', 'components', 'auto parts', 'car parts', 'vehicle parts',
-    // Broken/Damage terms
-    'broken', 'damage', 'damaged', 'broken part', 'broken component', 'damaged part', 'damaged component',
-    // Need phrases
-    'need part', 'part needed', 'need parts', 'parts needed', 'need repair', 'repair needed',
-    'need fix', 'fix needed', 'need replacement', 'replacement needed',
-    // Repair phrases
-    'repair work', 'repair service', 'part replacement', 'component replacement', 'fix work',
-    'repair my', 'fix my', 'repair the', 'fix the', 'repair vehicle', 'repair car',
-    // Specific repairs
-    'engine repair', 'transmission repair', 'brake repair', 'tire repair', 'body repair',
-    'engine fix', 'transmission fix', 'brake fix', 'tire fix', 'body fix'
+  'Logistics, Billing & Other': [
+    'invoice', 'receipt', 'billing', 'payment', 'charge', 'paid', 'insurance', 'paperwork',
+    'tow', 'pickup request', 'dropoff logistics', 'copy of invoice', 'transaction',
+    'payment method', 'credit card'
   ],
-  'Billing and Payments': [
-    // Core billing terms
-    'billing', 'bill', 'bills', 'invoice', 'invoices', 'invoice payment',
-    // Payment terms
-    'payment', 'pay', 'paying', 'paid', 'payments', 'payment method', 'payment options',
-    // Payment phrases
-    'how to pay', 'pay bill', 'pay invoice', 'make payment', 'payment due', 'payment information',
-    'payment amount', 'total due', 'amount due', 'balance', 'outstanding balance',
-    // Payment methods
-    'credit card', 'debit card', 'cash', 'check', 'cheque', 'payment plan', 'financing',
-    // Receipt/Invoice
-    'receipt', 'receipts', 'invoice copy', 'bill copy', 'payment receipt',
-    // Billing phrases
-    'billing question', 'billing inquiry', 'billing issue', 'payment question', 'payment inquiry'
+  'Forwarded to Advisor': [
+    'transfer', 'speak to', 'talk to', 'human', 'representative', 'agent', 'advisor', 'person',
+    'staff member', 'connect me', 'put me through', 'escalate', 'manager', 'technician name'
   ],
-  'General Information': [
-    // Core info terms
-    'information', 'info', 'question', 'questions', 'inquiry', 'inquiries', 'help', 'assistance',
-    // General phrases
-    'general', 'general question', 'general inquiry', 'general information', 'need info', 'need information',
-    'looking for', 'tell me about', 'information about', 'what is', 'what are', 'how do', 'how does',
-    // Question words
-    'what', 'how', 'where', 'when', 'why', 'who', 'which',
-    // Help phrases
-    'need help', 'looking for help', 'have a question', 'got a question', 'wondering about',
-    // Intro/Greeting terms - AGGRESSIVE MATCHING
-    'introduction', 'intro', 'introductions', 'virtual assistant', 'assistant intro', 'automotive virtual assistant',
-    'ai assistant', 'assistant', 'greeting', 'greetings', 'hello', 'hi', 'hey', 'welcome', 'welcoming',
-    // Location/Hours info
-    'hours', 'location', 'address', 'directions', 'where are you', 'where is', 'what are your hours',
-    'business hours', 'open hours', 'store hours', 'shop hours', 'location address', 'physical address',
-    'how to get there', 'directions to', 'where located', 'what address', 'what location',
-    // General phrases
-    'about your', 'about the', 'tell me', 'explain', 'can you tell me', 'do you know', 'i need to know',
-    'looking for information', 'seeking information', 'need details', 'want to know'
+  'System / Other': [
+    'unclassifiable', 'error', 'garbled', 'test', 'system issue', 'unclear intent', 'cannot determine'
   ],
-  'Customer Service Requests': [
-    // Core service terms
-    'customer service', 'service request', 'service issue', 'service problem', 'service', 'rep',
-    // Transfer/Human agent - AGGRESSIVE MATCHING
-    'transfer', 'transferred', 'transfer to', 'transfer me', 'transfer to human', 'transfer to agent',
-    'transfer request', 'transfer call', 'need to transfer', 'want to transfer', 'can you transfer',
-    'human agent', 'human', 'person', 'people', 'speak to human', 'talk to human', 'speak to agent', 'talk to agent',
-    'speak to manager', 'talk to manager', 'speak to someone', 'talk to someone', 'speak to', 'talk to',
-    'agent', 'agents', 'representative', 'representatives', 'rep', 'reps', 'advisor', 'advisors',
-    'manager', 'managers', 'supervisor', 'supervisors', 'connect', 'connect me', 'connect to', 'reach', 'reach out',
-    // Callback - AGGRESSIVE MATCHING
-    'callback', 'call back', 'call me back', 'have someone call', 'call me', 'call back request',
-    'please call', 'can you call', 'would like a call', 'need a call back', 'want a call back',
-    // Message taking - AGGRESSIVE MATCHING
-    'message', 'messages', 'take message', 'leave message', 'take a message', 'leave a message',
-    'for chris', 'for john', 'for mary', 'for', 'message for', 'take a message for', 'leave a message for',
-    // Speak/Talk - AGGRESSIVE MATCHING
-    'speak', 'speaking', 'talk', 'talking', 'speak with', 'talk with', 'speak to', 'talk to',
-    'i need to speak', 'i need to talk', 'want to speak', 'want to talk', 'can i speak', 'can i talk',
-    // Complaint/Issue terms
-    'complaint', 'complaints', 'issue', 'issues', 'problem', 'problems', 'concern', 'concerns',
-    'unhappy', 'dissatisfied', 'not happy', 'not satisfied', 'disappointed',
-    // Escalation
-    'escalate', 'escalation', 'escalated', 'escalate to', 'need to escalate',
-    // Feedback
-    'feedback', 'review', 'reviews', 'complaint about', 'issue with', 'problem with',
-    // Help phrases
-    'need help with issue', 'have a problem', 'customer complaint', 'customer concern',
-    'service issue', 'customer service issue', 'need assistance', 'need help'
-  ],
-  'Vehicle Logistics': [
-    // Pickup terms
-    'pickup', 'pick up', 'pick-up', 'picking up', 'pickup vehicle', 'pick up vehicle', 'pickup car', 'pick up car',
-    'when can i pick up', 'when can i pickup', 'when can we pick up', 'ready for pickup', 'ready to pick up',
-    // Delivery terms
-    'delivery', 'deliver', 'delivered', 'delivering', 'vehicle delivery', 'car delivery',
-    // Drop off terms
-    'drop off', 'drop-off', 'dropping off', 'drop off vehicle', 'drop off car', 'drop vehicle', 'drop car',
-    // Tow/Transport
-    'tow', 'towing', 'towed', 'tow truck', 'towing service', 'transport', 'transportation', 'transported',
-    // Location terms
-    'location', 'where', 'where is', 'where are', 'where can i', 'vehicle location', 'car location',
-    'logistics', 'retrieve', 'retrieval', 'when can i retrieve',
-    // Specific phrases
-    'pickup time', 'delivery time', 'drop off time', 'when to pick up', 'when to pickup'
-  ],
-  'Technical and Miscellaneous': [
-    // Technical terms
-    'technical', 'technically', 'technical support', 'technical issue', 'technical problem',
-    'technical assistance', 'technical help',
-    // Error/System terms
-    'error', 'errors', 'system error', 'system issue', 'system problem', 'system malfunction',
-    'malfunction', 'malfunctioning', 'malfunctions',
-    // Software/Hardware
-    'software', 'hardware', 'system', 'systems', 'application', 'app',
-    // Troubleshooting
-    'troubleshooting', 'troubleshoot', 'trouble shooting', 'fix issue', 'fix problem',
-    // Incomplete/Empty/Silent calls - AGGRESSIVE MATCHING
-    'incomplete', 'incomplete call', 'incomplete calls', 'empty', 'empty call', 'silent', 'silent call',
-    'silent calls', 'no response', 'no answer', 'no reply', 'no sound', 'no audio', 'no voice',
-    'inaudible', 'unclear', 'unclear audio', 'unclear call', 'cannot hear', 'can\'t hear', 'hard to hear',
-    // Wrong number/Test/Spam - AGGRESSIVE MATCHING
-    'wrong number', 'wrong numbers', 'not the right number', 'called wrong', 'wrong person',
-    'test', 'testing', 'test call', 'test calls', 'testing call', 'spam', 'spam call', 'spam calls',
-    'robocall', 'robocalls', 'automated call', 'automated calls', 'scam', 'scam call', 'scam calls',
-    // Abandoned/Disconnected - AGGRESSIVE MATCHING
-    'abandoned', 'abandoned call', 'abandoned calls', 'aborted', 'aborted call', 'aborted calls',
-    'hang up', 'hung up', 'hanging up', 'disconnected', 'disconnect', 'disconnection', 'call disconnected',
-    'dropped call', 'dropped calls', 'call dropped', 'lost connection', 'connection lost',
-    // Miscellaneous
-    'miscellaneous', 'misc', 'other', 'various', 'different', 'unusual',
-    // Technical phrases
-    'technical support needed', 'need technical support', 'have a technical issue', 'technical problem with'
-  ],
-  'Others': [], // Catch-all category
 };
 
 // Calculate similarity score between two strings (simple fuzzy matching)
@@ -258,28 +88,43 @@ function categorizeCall(conversation: ConversationForCategorization): string {
   const duration = conversation.call_duration_secs || 0;
   const messageCount = conversation.message_count || 0;
   
-  // NEW: Check for Hangups FIRST (before any keyword matching)
-  // Hangup criteria: duration < 15 seconds AND message count < 3
+  // FIRST: Check for Hangups (duration < 15 seconds AND message count < 3)
+  // This runs BEFORE any keyword matching
   if (duration < 15 && messageCount < 3) {
     return 'Hangups';
   }
   
-  // If not a hangup, proceed with existing keyword matching logic
+  // If not a hangup, proceed with keyword matching logic
   if (!title || title.trim() === '') {
-    return 'Others';
+    return 'System / Other';
   }
   
   const normalizedTitle = title.toLowerCase().trim();
-  let bestMatch = 'Others';
+  let bestMatch = 'System / Other';
   let bestScore = 0;
   
-  // Check each category's keywords (existing logic - DO NOT CHANGE)
+  // SECOND: Check Revenue Opportunity FIRST (service-related keywords get priority)
+  // This ensures service-related calls go to Revenue Opportunity even if general info is mentioned
+  const revenueKeywords = CATEGORY_KEYWORDS['Revenue Opportunity'] || [];
+  for (const keyword of revenueKeywords) {
+    if (normalizedTitle.includes(keyword.toLowerCase())) {
+      const score = calculateSimilarity(normalizedTitle, keyword);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = 'Revenue Opportunity';
+      }
+    }
+  }
+  
+  // THIRD: Check other category keywords (excluding Hangups and System / Other)
   for (const category of CATEGORIES) {
-    if (category === 'Others' || category === 'Hangups') continue; // Skip both catch-all categories
+    if (category === 'Hangups' || category === 'System / Other' || category === 'Revenue Opportunity') {
+      continue; // Skip already checked categories
+    }
     
     const keywords = CATEGORY_KEYWORDS[category] || [];
     
-    // Existing keyword matching logic - DO NOT CHANGE
+    // Keyword matching logic
     for (const keyword of keywords) {
       if (normalizedTitle.includes(keyword.toLowerCase())) {
         const score = calculateSimilarity(normalizedTitle, keyword);
@@ -298,9 +143,9 @@ function categorizeCall(conversation: ConversationForCategorization): string {
     }
   }
   
-  // Require minimum threshold (existing logic - DO NOT CHANGE)
+  // Require minimum threshold (SIMILARITY_THRESHOLD = 0.15)
   if (bestScore < 0.15) {
-    return 'Others';
+    return 'System / Other';
   }
   
   return bestMatch;
