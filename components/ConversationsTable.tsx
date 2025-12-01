@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Conversation, PaginationInfo } from '@/types';
 import { formatDuration } from '@/lib/supabase';
 import { formatDateTime } from '@/lib/utils';
@@ -23,7 +23,7 @@ export default function ConversationsTable({
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
-  const fetchConversations = async (pageNum: number) => {
+  const fetchConversations = useCallback(async (pageNum: number) => {
     setLoading(true);
     setError(null);
     try {
@@ -41,11 +41,11 @@ export default function ConversationsTable({
     } finally {
       setLoading(false);
     }
-  };
+  }, [agentId, startDate, endDate]);
 
   useEffect(() => {
     fetchConversations(page);
-  }, [agentId, startDate, endDate, page]);
+  }, [agentId, startDate, endDate, page, fetchConversations]);
 
   if (loading && conversations.length === 0) {
     return (

@@ -3,6 +3,7 @@ import { supabase, dateToUnix } from '@/lib/supabase';
 import { Conversation } from '@/types';
 import { AgentMetrics } from '@/types';
 
+export const dynamic = 'force-dynamic';
 // Cache for 15 minutes
 export const revalidate = 900;
 
