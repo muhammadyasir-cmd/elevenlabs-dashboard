@@ -45,19 +45,35 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   'Repair Status & Shop Updates': [
     'ready', 'status', 'update', 'done', 'finished', 'complete', 'progress', 'diagnosed',
     'diagnosis result', 'pick up ready', 'when ready', 'eta', 'how long', 'waiting',
-    'callback about repair', 'repair update', 'car pickup', 'vehicle ready', 'drop off',
+    'callback about repair', 'repair update', 'vehicle ready', 'drop off',
     'drop-off notification', 'car arrival', 'vehicle drop', 'bring car', 'car done',
-    'abandoned', 'incomplete', 'vehicle status', 'car status', 'pickup status', 'truck status',
+    'vehicle status', 'car status', 'pickup status', 'truck status',
     'status inquiry', 'status request', 'status update', 'ready inquiry', 'pickup inquiry',
     'ready status', 'pickup time', 'eta request', 'progress inquiry', 'update request',
-    'claim status', 'order status', 'heads ready', 'parts ready'
+    'claim status', 'order status', 'heads ready', 'parts ready',
+    'car pickup', 'vehicle pickup', 'truck pickup', 'drop-off', 'authorize work',
+    'vehicle release', 'keys confirmation', 'car ready', 'vehicle arrival',
+    'picking up car', 'pick up vehicle', 'picking up vehicle', 'picking up truck', 'dropping off',
+    'drop off car', 'bringing car', 'bringing vehicle', 'authorize', 'authorization', 'approval',
+    'vehicle is ready', 'car is ready', 'ready for pickup', 'checking status', 'status check',
+    'status on', 'inquiring about status', 'asking about status', 'when will be ready',
+    'car pickup arrangement', 'vehicle pickup arrangement', 'pickup time confirmation', 'pickup notification request',
+    'pickup assistance needed', 'pickup inquiry request', 'car drop-off scheduling', 'vehicle drop-off scheduling',
+    'drop-off arrangement', 'drop-off notification request', 'bringing car in', 'bringing vehicle in',
+    'car arrival confirmation', 'vehicle arrival confirmation', 'pickup confirmation request', 'ready for collection',
+    'collection notification', 'work authorization', 'authorize repair', 'approval needed', 'approval request',
+    'keys ready', 'car completion', 'vehicle completion', 'finished repair'
   ],
   'General Info & Customer Service': [
     'hours', 'open', 'close', 'location', 'address', 'directions', 'where located', 'holiday',
     'weekend hours', 'shuttle', 'contact', 'phone number', 'email', 'fax', 'general inquiry',
     'information', 'help', 'question about business', 'closing time', 'store hours', 'when close',
     'business hours', 'hours inquiry', 'greeting', 'hello', 'assistance', 'help with',
-    'virtual assistant', 'AI assistant'
+    'virtual assistant', 'AI assistant',
+    'language support', 'language assistance', 'spanish support', 'french support', 'switch to spanish',
+    'switch to french', 'translation needed', 'language help', 'speak spanish', 'speak french',
+    'virtual assistant introduction', 'virtual assistant greeting', 'automated assistant', 'assistant introduction',
+    'assistant greeting', 'call center introduction', 'greeting message', 'assistance offer', 'help offered'
   ],
   'Logistics, Billing & Other': [
     'invoice', 'receipt', 'billing', 'payment', 'charge', 'paid', 'insurance', 'paperwork',
@@ -65,13 +81,32 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'payment method', 'credit card', 'towing', 'tow truck', 'AAA', 'invoice copy',
     'payment inquiry', 'bill payment', 'billing inquiry', 'past due', 'payment assistance',
     'payment plan', 'payment options', 'payment link', 'charge inquiry', 'declined payment',
-    'overcharge', 'billing issue', 'payment follow-up', 'balance inquiry', 'payment authorization'
+    'overcharge', 'billing issue', 'payment follow-up', 'balance inquiry', 'payment authorization',
+    'car pickup', 'vehicle pickup', 'pick up car', 'ready to pick up',
+    'pay bill', 'pay invoice', 'make payment', 'send invoice',
+    'need tow', 'car towed', 'towing service',
+    'financing', 'quote', 'estimate', 'clearance', 'customs', 'shipment',
+    'need invoice', 'invoice request', 'billing question', 'payment issue', 'paying bill',
+    'need to pay', 'tow service', 'need towing', 'towing request', 'quote request',
+    'estimate request', 'pricing question', 'cost question', 'how much',
+    'invoice copy request', 'invoice inquiry request', 'billing inquiry request', 'payment inquiry request',
+    'bill payment inquiry', 'balance inquiry request', 'outstanding payment', 'payment status',
+    'invoice status', 'billing status', 'payment clarification', 'billing clarification', 'invoice clarification'
   ],
   'Forwarded to Advisor': [
     'transfer', 'speak to', 'talk to', 'human', 'representative', 'agent', 'advisor', 'person',
     'staff member', 'connect me', 'put me through', 'escalate', 'manager', 'technician name',
     'take message', 'leave message', 'message for', 'call back', 'return call', 'speak with',
-    'looking for', 'call for', 'returning call', 'pass message'
+    'looking for', 'call for', 'returning call', 'pass message',
+    'relay message', 'connect to', 'reach', 'unavailable', 'callback', 'find', 'seeking',
+    'taking message', 'leaving message', 'taking a message', 'leave a message', 'leaving a message',
+    'message request', 'message to', 'returning a call', 'returning phone call', 'calling for',
+    'calling back', 'call back request', 'speaking to', 'speaking with', 'talk with', 'talking to',
+    'request callback', 'need to speak', 'need to talk', 'reaching out', 'trying to reach',
+    'get in touch', 'contact person',
+    'return a call', 'message taking', 'message relay', 'forward message', 'looking for person',
+    'speak to person', 'talk to person', 'connect to person', 'reach person', 'find person',
+    'seeking person', 'callback request', 'return missed call'
   ],
   'System / Other': [
     // Only for truly unclassifiable, random, scam calls, wrong number
@@ -86,7 +121,8 @@ function calculateSimilarity(str1: string, str2: string): number {
   const s2 = str2.toLowerCase().trim();
   
   if (s1 === s2) return 1.0;
-  if (s1.includes(s2) || s2.includes(s1)) return 0.8;
+  // Prioritize substring matches - if keyword appears in title, return 0.9
+  if (s1.includes(s2) || s2.includes(s1)) return 0.9;
   
   // Calculate word overlap
   const words1 = s1.split(/\s+/);
@@ -132,7 +168,7 @@ function categorizeCall(conversation: ConversationForCategorization): string {
     }
   }
   
-  // THIRD: Check other category keywords (excluding Hangups and System / Other)
+  // THIRD: Check other category keywords (excluding Hangups, System / Other, and Revenue Opportunity)
   for (const category of CATEGORIES) {
     if (category === 'Hangups' || category === 'System / Other' || category === 'Revenue Opportunity') {
       continue; // Skip already checked categories
@@ -140,7 +176,7 @@ function categorizeCall(conversation: ConversationForCategorization): string {
     
     const keywords = CATEGORY_KEYWORDS[category] || [];
     
-    // Keyword matching logic
+    // Keyword matching logic - ensure normalizedTitle.includes() check runs for ALL categories
     for (const keyword of keywords) {
       if (normalizedTitle.includes(keyword.toLowerCase())) {
         const score = calculateSimilarity(normalizedTitle, keyword);
@@ -159,8 +195,34 @@ function categorizeCall(conversation: ConversationForCategorization): string {
     }
   }
   
-  // Require minimum threshold (SIMILARITY_THRESHOLD = 0.15)
-  if (bestScore < 0.15) {
+  // FOURTH: Check Hangups keywords (if no other category matched)
+  const hangupKeywords = CATEGORY_KEYWORDS['Hangups'] || [];
+  for (const keyword of hangupKeywords) {
+    if (normalizedTitle.includes(keyword.toLowerCase())) {
+      const score = calculateSimilarity(normalizedTitle, keyword);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = 'Hangups';
+      }
+    }
+  }
+  
+  // FIFTH: Check System / Other keywords (if no other category matched)
+  const systemKeywords = CATEGORY_KEYWORDS['System / Other'] || [];
+  for (const keyword of systemKeywords) {
+    if (normalizedTitle.includes(keyword.toLowerCase())) {
+      const score = calculateSimilarity(normalizedTitle, keyword);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = 'System / Other';
+      }
+    }
+  }
+  
+  // Require minimum threshold (SIMILARITY_THRESHOLD = 0.05 - lowered from 0.1 to catch more partial matches)
+  if (bestScore < 0.05) {
+    // Log calls that go to System/Other for debugging
+    console.log('🔍 [Categorization] System/Other - Title:', title, '| BestMatch:', bestMatch, '| BestScore:', bestScore.toFixed(3));
     return 'System / Other';
   }
   
