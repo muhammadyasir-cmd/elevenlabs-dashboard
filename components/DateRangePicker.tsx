@@ -21,7 +21,9 @@ function getDefaultDateRange(days: number): DateRange {
   
   const endDate = new Date(today);
   const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - days);
+  // Subtract (days - 1) to get exactly 'days' calendar days including today
+  // Example: "Last 7 days" = today + previous 6 days = 7 total days
+  startDate.setDate(startDate.getDate() - (days - 1));
   startDate.setHours(0, 0, 0, 0);
   
   return {
@@ -82,7 +84,9 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
     
     const end = new Date(today);
     const start = new Date(today);
-    start.setDate(start.getDate() - days);
+    // Subtract (days - 1) to get exactly 'days' calendar days including today
+    // Example: "Last 7 days" = today + previous 6 days = 7 total days
+    start.setDate(start.getDate() - (days - 1));
     start.setHours(0, 0, 0, 0);
     
     // Ensure we don't go before fixed start date

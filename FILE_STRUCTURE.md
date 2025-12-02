@@ -1,6 +1,6 @@
 # ElevenLabs Agent Performance Dashboard – Complete System Documentation
 
-**Last Updated:** 2025-01-XX (Updated with new 7-category structure and hangup detection logic)  
+**Last Updated:** 2025-01-XX (Updated with authentication system, React Query, and complete file structure)  
 **Project Path:** `/Users/yasir/Desktop/Web tracking portal new 2`
 
 ---
@@ -38,6 +38,8 @@ The **ElevenLabs Agent Performance Dashboard** is a Next.js web application desi
 - **UI Library**: React 18.3.0
 - **Styling**: Tailwind CSS 3.4.0
 - **Database**: Supabase (PostgreSQL)
+- **Authentication**: NextAuth.js 4.24.13 (Credentials Provider)
+- **Data Fetching**: TanStack React Query 5.90.11
 - **Charts**: Recharts 2.10.3
 - **Date Handling**: react-datepicker 4.25.0, date-fns 3.0.0
 - **Utilities**: clsx 2.1.0
@@ -197,6 +199,9 @@ The `/api/call-categories` endpoint categorizes ALL historical conversations (no
 │   ├── api/                      # API routes (server-side)
 │   │   ├── agents/
 │   │   │   └── route.ts          # GET /api/agents - Agent discovery endpoint
+│   │   ├── auth/
+│   │   │   └── [...nextauth]/
+│   │   │       └── route.ts      # NextAuth.js authentication endpoints
 │   │   ├── call-categories/
 │   │   │   ├── route.ts          # GET /api/call-categories - Call categorization endpoint
 │   │   │   └── details/
@@ -210,8 +215,11 @@ The `/api/call-categories` endpoint categorizes ALL historical conversations (no
 │   │   └── test/
 │   │       └── route.ts          # GET /api/test - Diagnostic endpoint
 │   ├── globals.css               # Global styles + Tailwind CSS imports
-│   ├── layout.tsx                # Root layout component
-│   └── page.tsx                  # Main dashboard page (homepage)
+│   ├── layout.tsx                # Root layout component (includes Providers)
+│   ├── login/
+│   │   └── page.tsx              # Login page with authentication form
+│   ├── page.tsx                  # Main dashboard page (homepage)
+│   └── providers.tsx             # React Query provider wrapper
 ├── components/                   # React components
 │   ├── AgentCard.tsx             # Agent summary card component
 │   ├── AgentDetailModal.tsx      # Agent detail modal with charts and table
@@ -226,6 +234,7 @@ The `/api/call-categories` endpoint categorizes ALL historical conversations (no
 │       ├── CallVolumeChart.tsx           # Call volume trend chart (linear regression)
 │       ├── DirectionDonutChart.tsx      # Direction distribution donut chart
 │       ├── DurationTrendChart.tsx        # Duration trend chart (linear regression)
+│       ├── HangupRateChart.tsx           # Hangup rate trend chart (linear regression)
 │       ├── StatusPieChart.tsx            # Status distribution pie chart
 │       └── SuccessRateChart.tsx          # Success rate trend chart
 ├── lib/                          # Utility libraries
@@ -233,7 +242,9 @@ The `/api/call-categories` endpoint categorizes ALL historical conversations (no
 │   ├── calculations.ts           # Metric calculation functions
 │   └── utils.ts                  # General utility functions
 ├── types/                        # TypeScript type definitions
-│   └── index.ts                  # Shared interfaces and types
+│   ├── index.ts                  # Shared interfaces and types
+│   └── next-auth.d.ts            # NextAuth.js type extensions
+├── middleware.ts                 # Next.js middleware for route protection
 ├── next.config.js                # Next.js configuration
 ├── next-env.d.ts                 # Next.js TypeScript declarations (generated)
 ├── package.json                  # Dependencies and scripts
@@ -274,6 +285,8 @@ The `/api/call-categories` endpoint categorizes ALL historical conversations (no
 **Required Variables**:
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase project URL (e.g., `https://xxxxx.supabase.co`)
 - `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key (for server-side queries with full access)
+- `NEXTAUTH_SECRET`: Secret key for NextAuth.js JWT encryption (required for production)
+- `NEXTAUTH_URL`: Base URL of the application (e.g., `http://localhost:3000` for development, production URL for production)
 
 **Security Note**: Never commit this file to git. It contains sensitive credentials.
 
@@ -316,18 +329,85 @@ The `/api/call-categories` endpoint categorizes ALL historical conversations (no
 - Sets page metadata (title: "ElevenLabs Agent Performance Dashboard")
 - Provides global HTML structure
 - Imports global CSS
+- Wraps children with `Providers` component for React Query
 
 **Code Structure**:
 ```typescript
+import Providers from './providers';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
       <body className="bg-gray-900 text-white antialiased">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
 }
+```
+
+#### `app/providers.tsx`
+**Purpose**: Provides React Query client to all child components.
+
+**Features**:
+- Creates a singleton `QueryClient` instance
+- Configures default query options:
+  - `staleTime`: 15 minutes (data considered fresh for 15 minutes)
+  - `refetchOnWindowFocus`: true (refetch when window regains focus)
+  - `refetchOnReconnect`: true (refetch when network reconnects)
+- Wraps children with `QueryClientProvider`
+
+**Usage**: Used in `app/layout.tsx` to provide React Query functionality to the entire app.
+
+#### `app/login/page.tsx` ⭐ **Login Page**
+**Purpose**: Authentication page for user login.
+
+**Features**:
+- **Email/Password Form**: Credentials-based authentication
+- **Password Visibility Toggle**: Show/hide password button
+- **Loading State**: Shows spinner during authentication
+- **Error Handling**: Displays error messages for invalid credentials
+- **Data Prefetching**: Pre-fetches dashboard data in background while user logs in:
+  - Pre-fetches agents and metrics for 7, 30, 90 days, and "All Time" ranges
+  - Pre-fetches call categories (all historical data)
+  - Uses React Query's `prefetchQuery` for background data loading
+  - Non-blocking: errors are silently handled, data will fetch on demand if needed
+- **Navigation**: Redirects to dashboard (`/`) on successful login
+- **Dark Theme**: Matches dashboard styling
+
+**Authentication Flow**:
+1. User enters email and password
+2. Form submits to NextAuth.js credentials provider
+3. On success: Redirects to dashboard (data already loading in background)
+4. On failure: Shows error message
+
+**Hardcoded Credentials** (configured in `/api/auth/[...nextauth]/route.ts`):
+- Email: `engineering@autoleap.com`
+- Password: `Autoleap@Dashbaord12345`
+
+**Key Code**:
+```typescript
+// Pre-fetch data in background on page load
+useEffect(() => {
+  const prefetchPromises = [
+    queryClient.prefetchQuery({
+      queryKey: ['agents', range7Days.startDate, range7Days.endDate],
+      queryFn: async () => {
+        const response = await fetch(
+          `/api/agents?start_date=${range7Days.startDate}&end_date=${range7Days.endDate}`
+        );
+        if (!response.ok) throw new Error('Failed to fetch agents');
+        return response.json();
+      },
+    }),
+    // ... more prefetch queries
+  ];
+  
+  Promise.all(prefetchPromises).catch((error) => {
+    // Silently handle errors - data will fetch on demand if needed
+    console.error('Background data fetch error (non-blocking):', error);
+  });
+}, [queryClient]);
 ```
 
 #### `app/globals.css`
@@ -796,6 +876,63 @@ function categorizeCall(conversation: ConversationForCategorization): string {
 - Returns sorted list (newest first)
 - Validates category name matches one of the 7 categories
 
+#### `app/api/auth/[...nextauth]/route.ts` ⭐ **NextAuth.js Authentication**
+**Purpose**: Handles all NextAuth.js authentication endpoints (sign in, sign out, session, etc.).
+
+**Endpoints** (handled by NextAuth.js):
+- `POST /api/auth/signin`: Sign in endpoint
+- `POST /api/auth/signout`: Sign out endpoint
+- `GET /api/auth/session`: Get current session
+- `GET /api/auth/csrf`: Get CSRF token
+- `GET /api/auth/providers`: Get available providers
+- `GET /api/auth/callback/[provider]`: OAuth callback (if using OAuth)
+
+**Configuration**:
+- **Provider**: Credentials Provider (email/password)
+- **Session Strategy**: JWT (JSON Web Token)
+- **Sign In Page**: `/login` (custom page)
+- **Credentials Check**: Hardcoded validation:
+  - Email: `engineering@autoleap.com`
+  - Password: `Autoleap@Dashbaord12345`
+
+**Callbacks**:
+- `jwt`: Adds user ID and email to JWT token
+- `session`: Adds user ID to session object
+
+**Security**:
+- Uses `NEXTAUTH_SECRET` environment variable (fallback to default in development)
+- JWT tokens stored in HTTP-only cookies
+- CSRF protection enabled
+
+**Key Code**:
+```typescript
+const handler = NextAuth({
+  providers: [
+    CredentialsProvider({
+      async authorize(credentials) {
+        if (
+          credentials.email === 'engineering@autoleap.com' &&
+          credentials.password === 'Autoleap@Dashbaord12345'
+        ) {
+          return {
+            id: '1',
+            email: 'engineering@autoleap.com',
+            name: 'Admin',
+          };
+        }
+        return null;
+      },
+    }),
+  ],
+  pages: {
+    signIn: '/login',
+  },
+  session: {
+    strategy: 'jwt',
+  },
+});
+```
+
 #### `app/api/test/route.ts`
 **Purpose**: Diagnostic endpoint to test Supabase connectivity.
 
@@ -1043,6 +1180,30 @@ All chart components use **Recharts** library and are styled for dark theme.
 - Y-axis: Percentage (0-100%)
 - Tooltip with formatted percentage
 
+##### `components/Charts/HangupRateChart.tsx` ⭐ **Hangup Rate Chart**
+**Purpose**: Line chart showing hangup rate percentage over time with linear regression trend line.
+
+**Features**:
+- Blue line: Actual daily hangup rate percentage
+- Red line: Straight diagonal trend line (linear regression)
+- Y-axis: Percentage (0-100%) formatted as "X%"
+- X-axis: Dates formatted as "M/D"
+- Tooltip with formatted percentage and date
+- Dark theme styling
+
+**Hangup Rate Calculation**:
+- Uses `hangupRate` field from `DailyMetric` interface
+- Calculated as percentage of calls with `duration < 15s AND message_count < 3`
+- Matches categorization logic in `/api/call-categories`
+
+**Trend Line Calculation**:
+- Uses linear regression (y = mx + b) for straight diagonal line
+- Calculates slope and intercept from all data points
+- Creates straight line from start to end point
+- Line type: `linear` (not `monotone`)
+
+**Data Source**: `DailyMetric[]` with `hangupRate` field populated
+
 ---
 
 ### `/lib` Directory
@@ -1186,6 +1347,81 @@ export interface CallCategory {
 }
 ```
 
+#### `types/next-auth.d.ts` ⭐ **NextAuth.js Type Extensions**
+**Purpose**: Extends NextAuth.js TypeScript types to include custom user and session properties.
+
+**Type Extensions**:
+- **User Interface**: Adds `id: string` property
+- **Session Interface**: Extends user object with `id`, `email`, and `name` properties
+- **JWT Interface**: Adds `id` and `email` properties to JWT token
+
+**Usage**: Ensures TypeScript recognizes custom properties added to NextAuth.js types throughout the application.
+
+**Key Code**:
+```typescript
+declare module 'next-auth' {
+  interface User {
+    id: string;
+  }
+
+  interface Session {
+    user: {
+      id: string;
+      email?: string | null;
+      name?: string | null;
+    };
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id?: string;
+  }
+}
+```
+
+---
+
+### Root Configuration Files (Additional)
+
+#### `middleware.ts` ⭐ **Route Protection Middleware**
+**Purpose**: Protects routes from unauthorized access using NextAuth.js middleware.
+
+**Features**:
+- Uses `withAuth` from `next-auth/middleware` to protect routes
+- **Authorization Check**: Requires valid JWT token (user must be authenticated)
+- **Route Matching**: Protects all routes EXCEPT:
+  - `/api/auth/*` (NextAuth.js authentication endpoints)
+  - `/login` (login page)
+  - `/_next/static/*` (static files)
+  - `/_next/image/*` (image optimization)
+  - `/favicon.ico` (favicon)
+
+**Behavior**:
+- Unauthenticated users accessing protected routes are redirected to `/login`
+- Authenticated users can access all protected routes
+- API auth endpoints and login page are always accessible
+
+**Key Code**:
+```typescript
+export default withAuth(
+  function middleware(req) {
+    return NextResponse.next();
+  },
+  {
+    callbacks: {
+      authorized: ({ token }) => !!token,
+    },
+  }
+);
+
+export const config = {
+  matcher: [
+    '/((?!api/auth|login|_next/static|_next/image|favicon.ico).*)',
+  ],
+};
+```
+
 ---
 
 ## Database Schema
@@ -1326,6 +1562,33 @@ export interface CallCategory {
 **Purpose**: Diagnostic endpoint to test Supabase connectivity.
 
 **Response**: `{ success: boolean, message: string, conversationCount?: number }`
+
+---
+
+### NextAuth.js Authentication Endpoints
+
+The application uses NextAuth.js for authentication. All authentication endpoints are handled automatically by NextAuth.js at `/api/auth/*`:
+
+- `POST /api/auth/signin`: Sign in with credentials
+- `POST /api/auth/signout`: Sign out current session
+- `GET /api/auth/session`: Get current session
+- `GET /api/auth/csrf`: Get CSRF token
+- `GET /api/auth/providers`: Get available authentication providers
+
+**Authentication Flow**:
+1. User visits protected route → Middleware checks for valid session
+2. If no session → Redirects to `/login`
+3. User enters credentials on login page
+4. Form submits to `POST /api/auth/signin`
+5. NextAuth.js validates credentials (hardcoded check)
+6. On success → Creates JWT session and redirects to dashboard
+7. On failure → Shows error message
+
+**Session Management**:
+- Sessions stored as JWT tokens in HTTP-only cookies
+- Session strategy: JWT (no database required)
+- Session persists across page refreshes
+- Session expires based on NextAuth.js default settings
 
 ---
 
@@ -1506,6 +1769,85 @@ export interface CallCategory {
 
 **Result**: Tooltip text is now white and easily readable against the dark background when hovering over category bars.
 
+### ✅ Authentication System
+
+**Problem**: Dashboard was publicly accessible without authentication.
+
+**Solution**: 
+- Implemented NextAuth.js with Credentials Provider
+- Created login page (`/app/login/page.tsx`) with email/password form
+- Added middleware (`middleware.ts`) to protect all routes except login and auth endpoints
+- Configured JWT session strategy for stateless authentication
+- Extended NextAuth.js types for TypeScript support
+
+**Features**:
+- **Protected Routes**: All routes except `/login` and `/api/auth/*` require authentication
+- **Login Page**: Dark-themed login form with password visibility toggle
+- **Session Management**: JWT-based sessions stored in HTTP-only cookies
+- **Automatic Redirects**: Unauthenticated users redirected to login
+- **Hardcoded Credentials**: 
+  - Email: `engineering@autoleap.com`
+  - Password: `Autoleap@Dashbaord12345`
+
+**Files Created**:
+- `/app/login/page.tsx`: Login page component
+- `/app/api/auth/[...nextauth]/route.ts`: NextAuth.js configuration
+- `/middleware.ts`: Route protection middleware
+- `/types/next-auth.d.ts`: NextAuth.js type extensions
+
+**Files Updated**:
+- `/app/layout.tsx`: Added `Providers` wrapper for React Query
+- `/app/providers.tsx`: Created React Query provider
+
+**Result**: Dashboard is now protected by authentication, ensuring only authorized users can access the data.
+
+### ✅ React Query Integration
+
+**Problem**: Need efficient data fetching with caching and background updates.
+
+**Solution**:
+- Integrated TanStack React Query for data fetching
+- Created `Providers` component to wrap app with `QueryClientProvider`
+- Configured default query options (15-minute stale time, refetch on focus/reconnect)
+- Implemented data prefetching on login page for faster dashboard load
+
+**Features**:
+- **Query Caching**: Data cached for 15 minutes (configurable)
+- **Background Refetching**: Automatically refetches data when window regains focus or network reconnects
+- **Data Prefetching**: Login page pre-fetches dashboard data in background
+- **Optimistic Updates**: Supports optimistic UI updates (future enhancement)
+
+**Files Created**:
+- `/app/providers.tsx`: React Query provider wrapper
+
+**Files Updated**:
+- `/app/layout.tsx`: Wraps children with `Providers`
+- `/app/login/page.tsx`: Implements data prefetching on page load
+
+**Result**: Faster dashboard loads with intelligent caching and background data updates.
+
+### ✅ Hangup Rate Chart
+
+**Problem**: Need to visualize hangup rate trends over time.
+
+**Solution**:
+- Created `HangupRateChart` component
+- Displays daily hangup rate percentage as line chart
+- Includes linear regression trend line (straight diagonal line)
+- Matches hangup detection logic: `duration < 15s AND message_count < 3`
+
+**Features**:
+- Blue line: Actual daily hangup rate
+- Red line: Linear regression trend line
+- Y-axis: Percentage (0-100%)
+- Dark theme styling
+- Tooltip with formatted date and percentage
+
+**Files Created**:
+- `/components/Charts/HangupRateChart.tsx`: Hangup rate chart component
+
+**Result**: Visual representation of hangup rate trends with trend analysis.
+
 ### 🎨 UI Features
 
 - **Dark Theme**: Consistent dark gray color scheme
@@ -1514,6 +1856,8 @@ export interface CallCategory {
 - **Error Handling**: User-friendly error messages with retry buttons
 - **Debug Panel**: Collapsible debug info panel (development)
 - **Auto-Refresh**: Optional 30-second auto-refresh toggle
+- **Authentication**: Protected routes with login page
+- **Password Visibility**: Toggle to show/hide password on login form
 
 ### 📊 Data Visualization
 
@@ -1539,7 +1883,11 @@ export interface CallCategory {
    ```
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+   NEXTAUTH_SECRET=your_nextauth_secret_key
+   NEXTAUTH_URL=http://localhost:3000
    ```
+   
+   **Note**: For production, set `NEXTAUTH_URL` to your production domain.
 
 3. **Run Development Server**:
    ```bash
@@ -1547,16 +1895,27 @@ export interface CallCategory {
    ```
 
 4. **Access Dashboard**:
-   Open `http://localhost:3000`
+   - Open `http://localhost:3000` (will redirect to `/login` if not authenticated)
+   - Login with credentials:
+     - Email: `engineering@autoleap.com`
+     - Password: `Autoleap@Dashbaord12345`
+   - After login, you'll be redirected to the dashboard
 
 ### Testing
 
-1. **Test Date Range**: Select different date ranges (7, 30, 90 days)
-2. **Test Agent Discovery**: Verify all agents appear (should see all 18 agents for appropriate ranges)
-3. **Test Metrics**: Verify metrics are accurate (check totals match conversation counts)
-4. **Test Pagination**: Verify conversations table pagination works
-5. **Test Charts**: Verify charts display correctly with data
-6. **Test Call Categories**: Verify call categories chart shows all historical data
+1. **Test Authentication**:
+   - Try accessing dashboard without login (should redirect to `/login`)
+   - Test login with correct credentials (should redirect to dashboard)
+   - Test login with incorrect credentials (should show error)
+   - Test session persistence (refresh page, should stay logged in)
+
+2. **Test Date Range**: Select different date ranges (7, 30, 90 days)
+3. **Test Agent Discovery**: Verify all agents appear (should see all 18 agents for appropriate ranges)
+4. **Test Metrics**: Verify metrics are accurate (check totals match conversation counts)
+5. **Test Pagination**: Verify conversations table pagination works
+6. **Test Charts**: Verify charts display correctly with data
+7. **Test Call Categories**: Verify call categories chart shows all historical data
+8. **Test Data Prefetching**: Check browser network tab on login page (should see background API calls)
 
 ### Debugging
 
@@ -1574,11 +1933,13 @@ Potential improvements:
 - Agent comparison view (side-by-side)
 - Advanced filtering (by status, direction, etc.)
 - Real-time updates via Supabase subscriptions
-- User authentication and multi-tenant support
+- Multi-user authentication with database-backed sessions
 - Custom date range presets
 - Performance optimizations (caching, query optimization)
 - Additional chart types (heatmaps, scatter plots)
 - Call transcript search functionality
+- User roles and permissions
+- Audit logging for user actions
 
 ---
 

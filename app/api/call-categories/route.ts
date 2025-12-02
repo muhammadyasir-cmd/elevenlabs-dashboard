@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabase, dateToUnix } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-// Cache for 15 minutes
-export const revalidate = 900;
+export const revalidate = 0;
 
 // Interface for conversation data used in categorization
 interface ConversationForCategorization {
@@ -24,6 +23,7 @@ const CATEGORIES = [
 ] as const;
 
 // Category keywords for fuzzy matching - New 7-category structure
+// Updated: 2025-12-02 (Cache-busting timestamp - reverted to original logic)
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
   'Hangups': [
     // Keyword-based hangup detection (after duration check)
@@ -39,29 +39,44 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'coolant', 'timing', 'clutch', 'strut', 'shock', 'cv joint', 'wheel bearing', 'serpentine',
     'thermostat', 'water pump', 'fuel pump', 'starter', 'catalytic converter', 'muffler', 'rotor',
     'pad', 'caliper', 'master cylinder', 'do you do', 'can you', 'availability', 'fixing',
-    'looking for service'
+    'looking for service', "won't start", 'car issue', 'vehicle problem', 'oil leak', 'tire issue',
+    'not working', 'broken', 'needs repair', 'engine problem', 'breakdown', 'car trouble'
   ],
   'Repair Status & Shop Updates': [
     'ready', 'status', 'update', 'done', 'finished', 'complete', 'progress', 'diagnosed',
     'diagnosis result', 'pick up ready', 'when ready', 'eta', 'how long', 'waiting',
-    'callback about repair', 'repair update'
+    'callback about repair', 'repair update', 'car pickup', 'vehicle ready', 'drop off',
+    'drop-off notification', 'car arrival', 'vehicle drop', 'bring car', 'car done',
+    'abandoned', 'incomplete', 'vehicle status', 'car status', 'pickup status', 'truck status',
+    'status inquiry', 'status request', 'status update', 'ready inquiry', 'pickup inquiry',
+    'ready status', 'pickup time', 'eta request', 'progress inquiry', 'update request',
+    'claim status', 'order status', 'heads ready', 'parts ready'
   ],
   'General Info & Customer Service': [
     'hours', 'open', 'close', 'location', 'address', 'directions', 'where located', 'holiday',
     'weekend hours', 'shuttle', 'contact', 'phone number', 'email', 'fax', 'general inquiry',
-    'information', 'help', 'question about business'
+    'information', 'help', 'question about business', 'closing time', 'store hours', 'when close',
+    'business hours', 'hours inquiry', 'greeting', 'hello', 'assistance', 'help with',
+    'virtual assistant', 'AI assistant'
   ],
   'Logistics, Billing & Other': [
     'invoice', 'receipt', 'billing', 'payment', 'charge', 'paid', 'insurance', 'paperwork',
     'tow', 'pickup request', 'dropoff logistics', 'copy of invoice', 'transaction',
-    'payment method', 'credit card'
+    'payment method', 'credit card', 'towing', 'tow truck', 'AAA', 'invoice copy',
+    'payment inquiry', 'bill payment', 'billing inquiry', 'past due', 'payment assistance',
+    'payment plan', 'payment options', 'payment link', 'charge inquiry', 'declined payment',
+    'overcharge', 'billing issue', 'payment follow-up', 'balance inquiry', 'payment authorization'
   ],
   'Forwarded to Advisor': [
     'transfer', 'speak to', 'talk to', 'human', 'representative', 'agent', 'advisor', 'person',
-    'staff member', 'connect me', 'put me through', 'escalate', 'manager', 'technician name'
+    'staff member', 'connect me', 'put me through', 'escalate', 'manager', 'technician name',
+    'take message', 'leave message', 'message for', 'call back', 'return call', 'speak with',
+    'looking for', 'call for', 'returning call', 'pass message'
   ],
   'System / Other': [
-    'unclassifiable', 'error', 'garbled', 'test', 'system issue', 'unclear intent', 'cannot determine'
+    // Only for truly unclassifiable, random, scam calls, wrong number
+    'unclassifiable', 'error', 'garbled', 'test', 'system issue', 'unclear intent', 'cannot determine',
+    'scam', 'wrong number', 'random', 'spam', 'robocall', 'telemarketing', 'prank call'
   ],
 };
 
@@ -282,4 +297,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

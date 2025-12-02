@@ -151,8 +151,6 @@ export default function Dashboard() {
     setSelectedAgent(null);
   };
 
-  const lastUpdated = new Date();
-
   console.log('🔵 Render state:', { loading, error, agentsCount: agents.length, metricsCount: metrics.length });
 
   return (
@@ -184,23 +182,11 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
+              <h1 className="text-3xl font-bold text-white">
                 ElevenLabs Agent Performance Dashboard
               </h1>
-              <p className="text-sm text-gray-400">
-                Last updated: <span suppressHydrationWarning>{lastUpdated.toLocaleTimeString()}</span>
-              </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-              <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoRefresh}
-                  onChange={(e) => setAutoRefresh(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
-                />
-                Auto-refresh (30s)
-              </label>
               <button
                 onClick={handleRefresh}
                 disabled={loading}
