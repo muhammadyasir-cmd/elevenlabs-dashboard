@@ -30,7 +30,11 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   'Hangups': [
     // Keyword-based hangup detection (after duration check)
     'silent', 'incomplete', 'no response', 'disconnected', 'hang up', 'hangup', 'empty', 'abandoned',
-    'noise only', 'robocall', 'spam call', 'immediate disconnect'
+    'noise only', 'robocall', 'spam call', 'immediate disconnect',
+    'hangs up', 'hangs up on', 'abrupt termination', 'abrupt call',
+    'silent call', 'empty call', 'call connection issue',
+    'dropped call', 'call terminated', 'ended abruptly', 'user hangs',
+    'disconnect', 'silence', 'call ended', 'call cut', 'call dropped'
   ],
   'Revenue Opportunity': [
     // Service-related keywords (merged from all service categories)
@@ -44,7 +48,9 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'looking for service', "won't start", 'car issue', 'vehicle problem', 'oil leak', 'tire issue',
     'not working', 'broken', 'needs repair', 'engine problem', 'breakdown', 'car trouble',
     'checking on', 'following up', 'need help with', 'problem with', 'issue with', 'concern about',
-    'question about service'
+    'question about service',
+    'vehicle issue', 'car problem', 'vehicle trouble', 'help with',
+    'assistance with', 'worried about', 'assistance needed', 'needs help', "won't crank"
   ],
   'Repair Status & Shop Updates': [
     'ready', 'status', 'update', 'done', 'finished', 'complete', 'progress', 'diagnosed',
@@ -67,7 +73,11 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'drop-off arrangement', 'drop-off notification request', 'bringing car in', 'bringing vehicle in',
     'car arrival confirmation', 'vehicle arrival confirmation', 'pickup confirmation request', 'ready for collection',
     'collection notification', 'work authorization', 'authorize repair', 'approval needed', 'approval request',
-    'keys ready', 'car completion', 'vehicle completion', 'finished repair'
+    'keys ready', 'car completion', 'vehicle completion', 'finished repair',
+    'pickup inquiry', 'pickup arrangement', 'pickup notification', 'pickup assistance',
+    'drop-off inquiry', 'drop-off arrangement', 'drop-off notification',
+    'bringing car', 'bringing vehicle', 'arrival confirmation', 'arrival notification',
+    'pickup confirmation', 'drop-off confirmation'
   ],
   'General Info & Customer Service': [
     'hours', 'open', 'close', 'location', 'address', 'directions', 'where located', 'holiday',
@@ -79,7 +89,10 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'switch to french', 'translation needed', 'language help', 'speak spanish', 'speak french',
     'virtual assistant introduction', 'virtual assistant greeting', 'automated assistant', 'assistant introduction',
     'assistant greeting', 'call center introduction', 'greeting message', 'assistance offer', 'help offered',
-    'do you have', 'are you open', 'what time', 'where are you', 'how do I', 'can you tell me'
+    'do you have', 'are you open', 'what time', 'where are you', 'how do I', 'can you tell me',
+    'call start', 'inbound call greeting', 'shop info request', 'business inquiry',
+    'how can I assist', 'how may I help', 'assistance needed',
+    'call recording', 'call introduction'
   ],
   'Logistics, Billing & Other': [
     'invoice', 'receipt', 'billing', 'payment', 'charge', 'paid', 'insurance', 'paperwork',
@@ -113,7 +126,9 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'return a call', 'message taking', 'message relay', 'forward message', 'looking for person',
     'speak to person', 'talk to person', 'connect to person', 'reach person', 'find person',
     'seeking person', 'callback request', 'return missed call', 'want to talk', 'can I speak',
-    'may I speak', 'is available', 'get back to me'
+    'may I speak', 'is available', 'get back to me',
+    'request to speak', 'follow-up', 'follow up', 'missed call',
+    'connect me to', 'put me through to', 'reaching out to', 'get in touch with'
   ],
   'System / Other': [
     // Only for truly unclassifiable, random, scam calls, wrong number
