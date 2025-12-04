@@ -22,6 +22,13 @@ const CATEGORIES = [
   'System / Other',
 ] as const;
 
+const CATEGORY_EVALUATION_ORDER: Array<(typeof CATEGORIES)[number]> = [
+  'Repair Status & Shop Updates',
+  'Logistics, Billing & Other',
+  'General Info & Customer Service',
+  'Forwarded to Advisor',
+] as const;
+
 const SIMILARITY_THRESHOLD = 0.01;
 
 // Category keywords for fuzzy matching - New 7-category structure
@@ -77,7 +84,15 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'pickup inquiry', 'pickup arrangement', 'pickup notification', 'pickup assistance',
     'drop-off inquiry', 'drop-off arrangement', 'drop-off notification',
     'bringing car', 'bringing vehicle', 'arrival confirmation', 'arrival notification',
-    'pickup confirmation', 'drop-off confirmation'
+    'pickup confirmation', 'drop-off confirmation',
+    'checking on', 'check on', 'status of', 'where is my', 'is my car', 'is my vehicle',
+    'when will', 'how long', 'car ready', 'vehicle ready', 'ready yet', 'done yet',
+    'finished yet', 'status check', 'checking status', 'inquiring about', 'asking about',
+    'following up on', 'follow up on', 'update on', 'car update', 'vehicle update',
+    'repair status', 'work status', 'job status', 'estimate status', 'car progress',
+    'vehicle progress', 'completion status', 'when done', 'when ready', 'time estimate',
+    'ready for pickup', 'ready to pick', 'can I pick', 'pickup ready', 'come get',
+    'car done', 'vehicle done', 'work done', 'repair done', 'finished repair'
   ],
   'General Info & Customer Service': [
     'hours', 'open', 'close', 'location', 'address', 'directions', 'where located', 'holiday',
@@ -110,7 +125,11 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'estimate request', 'pricing question', 'cost question', 'how much',
     'invoice copy request', 'invoice inquiry request', 'billing inquiry request', 'payment inquiry request',
     'bill payment inquiry', 'balance inquiry request', 'outstanding payment', 'payment status',
-    'invoice status', 'billing status', 'payment clarification', 'billing clarification', 'invoice clarification'
+    'invoice status', 'billing status', 'payment clarification', 'billing clarification', 'invoice clarification',
+    'cost', 'price', 'pricing', 'charges', 'total', 'bill', 'pay', 'paid', 'transaction', 'balance',
+    'outstanding', 'owe', 'owing', 'amount due', 'finance', 'financing',
+    'debit', 'billing inquiry', 'invoice inquiry', 'cost inquiry', 'price inquiry',
+    'estimate cost', 'quote cost', 'insurance', 'paperwork', 'document'
   ],
   'Forwarded to Advisor': [
     'transfer', 'speak to', 'talk to', 'human', 'representative', 'agent', 'advisor', 'person',
@@ -190,12 +209,8 @@ function categorizeCall(conversation: ConversationForCategorization): string {
     }
   }
   
-  // THIRD: Check other category keywords (excluding Hangups, System / Other, and Revenue Opportunity)
-  for (const category of CATEGORIES) {
-    if (category === 'Hangups' || category === 'System / Other' || category === 'Revenue Opportunity') {
-      continue; // Skip already checked categories
-    }
-    
+  // THIRD: Check other category keywords using priority order
+  for (const category of CATEGORY_EVALUATION_ORDER) {
     const keywords = CATEGORY_KEYWORDS[category] || [];
     
     // Keyword matching logic - ensure normalizedTitle.includes() check runs for ALL categories
