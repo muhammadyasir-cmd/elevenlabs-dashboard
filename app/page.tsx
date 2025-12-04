@@ -26,6 +26,7 @@ export default function Dashboard() {
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
   const itemsPerPage = 20;
 
@@ -96,6 +97,7 @@ export default function Dashboard() {
   });
 
   // Derived state
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const agents = agentsData?.agents || [];
   const metrics = (metricsData?.metrics || []).sort(
     (a: AgentMetrics, b: AgentMetrics) => b.totalConversations - a.totalConversations
@@ -104,13 +106,24 @@ export default function Dashboard() {
   const callCategoriesTotal = categoriesData?.totalCalls || 0;
   const loading = agentsLoading || metricsLoading;
   const error = agentsError || metricsError;
+  const filteredMetrics = normalizedSearchQuery
+    ? metrics.filter((metric: AgentMetrics) =>
+        metric.agent_name.toLowerCase().includes(normalizedSearchQuery)
+      )
+    : metrics;
+  const paginatedMetrics = filteredMetrics.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+  const filteredMetricsCount = filteredMetrics.length;
+  const totalFilteredPages = Math.max(1, Math.ceil(filteredMetrics.length / itemsPerPage));
 
   // Reset to first page when data changes
   useEffect(() => {
     if (metrics.length > 0) {
       setCurrentPage(1);
     }
-  }, [metrics.length]);
+  }, [metrics.length, normalizedSearchQuery]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -303,31 +316,71 @@ export default function Dashboard() {
                   </p>
                 </div>
 
+                {metrics.length > 0 && (
+                  <div className="mb-6">
+                    <label htmlFor="agent-search" className="sr-only">
+                      Search agents
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-gray-400 pointer-events-none">
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 21l-4.35-4.35M15 10a5 5 0 11-10 0 5 5 0 0110 0z"
+                          />
+                        </svg>
+                      </span>
+                      <input
+                        id="agent-search"
+                        type="text"
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Search agents by name..."
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-colors"
+                      />
+                    </div>
+                    <p className="text-sm text-gray-400 mt-2">
+                      {filteredMetricsCount} agent{filteredMetricsCount === 1 ? '' : 's'} found
+                    </p>
+                  </div>
+                )}
+
                 {metrics.length === 0 ? (
                   <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-6">
                     <p className="text-yellow-400">
                       ⚠️ No metrics data available. Agents were found but metrics calculation failed.
                     </p>
                   </div>
+                ) : filteredMetrics.length === 0 ? (
+                  <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 text-center">
+                    <p className="text-gray-300 mb-2">No agents match your search.</p>
+                    <p className="text-gray-500 text-sm">Try a different name or clear the search box.</p>
+                  </div>
                 ) : (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-300">
-                      {metrics
-                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                        .map((metric: AgentMetrics) => (
-                          <AgentCard
-                            key={metric.agent_id}
-                            metrics={metric}
-                            onViewDetails={handleViewDetails}
-                          />
-                        ))}
+                      {paginatedMetrics.map((metric: AgentMetrics) => (
+                        <AgentCard
+                          key={metric.agent_id}
+                          metrics={metric}
+                          onViewDetails={handleViewDetails}
+                        />
+                      ))}
                     </div>
                     
                     {/* Pagination Controls */}
-                    {metrics.length > itemsPerPage && (
+                    {filteredMetrics.length > itemsPerPage && (
                       <div className="mt-8 flex flex-col items-center gap-4">
                         <div className="text-sm text-gray-400">
-                          Page {currentPage} of {Math.ceil(metrics.length / itemsPerPage)}
+                          Page {currentPage} of {totalFilteredPages}
                         </div>
                         <div className="flex items-center gap-2">
                           <button
@@ -339,10 +392,10 @@ export default function Dashboard() {
                           </button>
                           
                           <div className="flex gap-1">
-                            {Array.from({ length: Math.ceil(metrics.length / itemsPerPage) }, (_, i) => i + 1)
+                            {Array.from({ length: totalFilteredPages }, (_, i) => i + 1)
                               .filter(page => {
-                                // Show first page, last page, current page, and pages around current
-                                const totalPages = Math.ceil(metrics.length / itemsPerPage);
+                                // Show first page, last page, current page, and nearby pages
+                                const totalPages = totalFilteredPages;
                                 if (totalPages <= 7) return true;
                                 if (page === 1 || page === totalPages) return true;
                                 if (Math.abs(page - currentPage) <= 1) return true;
@@ -372,8 +425,8 @@ export default function Dashboard() {
                           </div>
                           
                           <button
-                            onClick={() => setCurrentPage(prev => Math.min(Math.ceil(metrics.length / itemsPerPage), prev + 1))}
-                            disabled={currentPage === Math.ceil(metrics.length / itemsPerPage)}
+                            onClick={() => setCurrentPage(prev => Math.min(totalFilteredPages, prev + 1))}
+                            disabled={currentPage === totalFilteredPages}
                             className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Next

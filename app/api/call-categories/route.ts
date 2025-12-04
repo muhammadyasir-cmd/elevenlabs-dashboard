@@ -22,6 +22,8 @@ const CATEGORIES = [
   'System / Other',
 ] as const;
 
+const SIMILARITY_THRESHOLD = 0.01;
+
 // Category keywords for fuzzy matching - New 7-category structure
 // Updated: 2025-12-02 (Cache-busting timestamp - reverted to original logic)
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -40,7 +42,9 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'thermostat', 'water pump', 'fuel pump', 'starter', 'catalytic converter', 'muffler', 'rotor',
     'pad', 'caliper', 'master cylinder', 'do you do', 'can you', 'availability', 'fixing',
     'looking for service', "won't start", 'car issue', 'vehicle problem', 'oil leak', 'tire issue',
-    'not working', 'broken', 'needs repair', 'engine problem', 'breakdown', 'car trouble'
+    'not working', 'broken', 'needs repair', 'engine problem', 'breakdown', 'car trouble',
+    'checking on', 'following up', 'need help with', 'problem with', 'issue with', 'concern about',
+    'question about service'
   ],
   'Repair Status & Shop Updates': [
     'ready', 'status', 'update', 'done', 'finished', 'complete', 'progress', 'diagnosed',
@@ -57,6 +61,7 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'drop off car', 'bringing car', 'bringing vehicle', 'authorize', 'authorization', 'approval',
     'vehicle is ready', 'car is ready', 'ready for pickup', 'checking status', 'status check',
     'status on', 'inquiring about status', 'asking about status', 'when will be ready',
+    'calling about', 'checking in', 'update on', 'status of', 'where is my', 'is my car', 'when can I',
     'car pickup arrangement', 'vehicle pickup arrangement', 'pickup time confirmation', 'pickup notification request',
     'pickup assistance needed', 'pickup inquiry request', 'car drop-off scheduling', 'vehicle drop-off scheduling',
     'drop-off arrangement', 'drop-off notification request', 'bringing car in', 'bringing vehicle in',
@@ -73,7 +78,8 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'language support', 'language assistance', 'spanish support', 'french support', 'switch to spanish',
     'switch to french', 'translation needed', 'language help', 'speak spanish', 'speak french',
     'virtual assistant introduction', 'virtual assistant greeting', 'automated assistant', 'assistant introduction',
-    'assistant greeting', 'call center introduction', 'greeting message', 'assistance offer', 'help offered'
+    'assistant greeting', 'call center introduction', 'greeting message', 'assistance offer', 'help offered',
+    'do you have', 'are you open', 'what time', 'where are you', 'how do I', 'can you tell me'
   ],
   'Logistics, Billing & Other': [
     'invoice', 'receipt', 'billing', 'payment', 'charge', 'paid', 'insurance', 'paperwork',
@@ -106,7 +112,8 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'get in touch', 'contact person',
     'return a call', 'message taking', 'message relay', 'forward message', 'looking for person',
     'speak to person', 'talk to person', 'connect to person', 'reach person', 'find person',
-    'seeking person', 'callback request', 'return missed call'
+    'seeking person', 'callback request', 'return missed call', 'want to talk', 'can I speak',
+    'may I speak', 'is available', 'get back to me'
   ],
   'System / Other': [
     // Only for truly unclassifiable, random, scam calls, wrong number
@@ -219,11 +226,10 @@ function categorizeCall(conversation: ConversationForCategorization): string {
     }
   }
   
-  // Require minimum threshold (SIMILARITY_THRESHOLD = 0.05 - lowered from 0.1 to catch more partial matches)
-  if (bestScore < 0.05) {
-    // Log calls that go to System/Other for debugging
-    console.log('🔍 [Categorization] System/Other - Title:', title, '| BestMatch:', bestMatch, '| BestScore:', bestScore.toFixed(3));
-    return 'System / Other';
+  // Require minimum threshold before trusting match; fall back to best guess even if low confidence
+  if (bestScore < SIMILARITY_THRESHOLD) {
+    console.log('🔍 [Categorization] Low-confidence match - Title:', title, '| BestMatch:', bestMatch, '| BestScore:', bestScore.toFixed(3));
+    return bestMatch;
   }
   
   return bestMatch;

@@ -1,6 +1,6 @@
 # ElevenLabs Agent Performance Dashboard – Complete System Documentation
 
-**Last Updated:** 2025-12-02 (Updated with enhanced keyword matching, improved categorization logic, and comprehensive keyword variations)  
+**Last Updated:** 2025-12-04 (Refreshed full directory mapping and documentation cross-check)  
 **Project Path:** `/Users/yasir/Desktop/Web tracking portal new 2`
 
 ---
@@ -183,76 +183,71 @@ The `/api/call-categories` endpoint categorizes ALL historical conversations (no
 
 ## Complete Directory Structure
 
+The layout below reflects the repository as of **2025-12-04**. Generated artifacts such as `.next/` and `node_modules/` remain gitignored but are listed for clarity.
+
 ```
 .
-├── .env.local                    # Environment variables (Supabase credentials) - NOT in git
-├── .eslintrc.json                # ESLint configuration
-├── .gitignore                    # Git ignore rules
-├── .next/                        # Next.js build output (generated, not in git)
-├── node_modules/                 # Dependencies (not in git)
-├── DATABASE_SETUP_CALL_CATEGORIES.md  # Database setup guide for call categories
-├── DEBUG_GUIDE.md                # Debugging instructions
-├── FIXES_APPLIED.md              # Fix history documentation
-├── FILE_STRUCTURE.md             # This file - complete system documentation
-├── README.md                     # Project overview and setup instructions
-├── app/                          # Next.js App Router directory
-│   ├── api/                      # API routes (server-side)
-│   │   ├── agents/
-│   │   │   └── route.ts          # GET /api/agents - Agent discovery endpoint
-│   │   ├── auth/
-│   │   │   └── [...nextauth]/
-│   │   │       └── route.ts      # NextAuth.js authentication endpoints
-│   │   ├── call-categories/
-│   │   │   ├── route.ts          # GET /api/call-categories - Call categorization endpoint
-│   │   │   └── details/
-│   │   │       └── route.ts      # GET /api/call-categories/details - Category details endpoint
-│   │   ├── conversations/
-│   │   │   └── route.ts          # GET /api/conversations - Paginated conversations
-│   │   ├── metrics/
-│   │   │   └── route.ts          # GET /api/metrics - Metrics calculation endpoint
-│   │   ├── trends/
-│   │   │   └── route.ts          # GET /api/trends - Daily trend metrics
-│   │   └── test/
-│   │       └── route.ts          # GET /api/test - Diagnostic endpoint
-│   ├── globals.css               # Global styles + Tailwind CSS imports
-│   ├── layout.tsx                # Root layout component (includes Providers)
-│   ├── login/
-│   │   └── page.tsx              # Login page with authentication form
-│   ├── page.tsx                  # Main dashboard page (homepage)
-│   └── providers.tsx             # React Query provider wrapper
-├── components/                   # React components
-│   ├── AgentCard.tsx             # Agent summary card component
-│   ├── AgentDetailModal.tsx      # Agent detail modal with charts and table
-│   ├── CategoryDetailsModal.tsx  # Modal showing call titles for a category
-│   ├── ConversationsTable.tsx    # Paginated conversation table component
-│   ├── DateRangePicker.tsx       # Date range selector component
-│   ├── LoadingSpinner.tsx        # Loading indicator component
-│   ├── MetricCard.tsx            # Metric display card component
-│   └── Charts/                   # Chart components directory
-│       ├── AverageMessagesChart.tsx      # Average messages trend chart (linear regression)
-│       ├── CallCategoriesChart.tsx       # Call categories bar chart
-│       ├── CallVolumeChart.tsx           # Call volume trend chart (linear regression)
-│       ├── DirectionDonutChart.tsx      # Direction distribution donut chart
-│       ├── DurationTrendChart.tsx        # Duration trend chart (linear regression)
-│       ├── HangupRateChart.tsx           # Hangup rate trend chart (linear regression)
-│       ├── StatusPieChart.tsx            # Status distribution pie chart
-│       └── SuccessRateChart.tsx          # Success rate trend chart
-├── lib/                          # Utility libraries
-│   ├── supabase.ts               # Supabase client + helper functions
-│   ├── calculations.ts           # Metric calculation functions
-│   └── utils.ts                  # General utility functions
-├── types/                        # TypeScript type definitions
-│   ├── index.ts                  # Shared interfaces and types
-│   └── next-auth.d.ts            # NextAuth.js type extensions
-├── middleware.ts                 # Next.js middleware for route protection
-├── next.config.js                # Next.js configuration
-├── next-env.d.ts                 # Next.js TypeScript declarations (generated)
-├── package.json                  # Dependencies and scripts
-├── package-lock.json             # Dependency lock file
-├── postcss.config.js             # PostCSS configuration
-├── tailwind.config.ts            # Tailwind CSS configuration
-└── tsconfig.json                 # TypeScript configuration
+├── .env.local*                   # Local secrets (Supabase + NextAuth credentials)
+├── .eslintrc.json                # ESLint configuration (Next.js / React rules)
+├── .git/                         # Git metadata
+├── .gitignore                    # Ignore patterns (node_modules, .next, .env.local, etc.)
+├── .next/                        # Next.js build cache/output (generated)
+├── DATABASE_SETUP_CALL_CATEGORIES.md  # SQL + procedural guide for category dataset
+├── DEBUG_GUIDE.md                # Troubleshooting checklist and logging tips
+├── FILE_STRUCTURE.md             # This living document
+├── FIXES_APPLIED.md              # Chronological changelog of remediation work
+├── README.md                     # Project intro, setup, and quickstart
+├── app/                          # Next.js App Router source
+│   ├── api/                      # Server-side API routes
+│   │   ├── agents/route.ts       # GET /api/agents (agent discovery)
+│   │   ├── auth/[...nextauth]/route.ts   # NextAuth credentials provider
+│   │   ├── call-categories/route.ts      # GET /api/call-categories (categorization)
+│   │   ├── call-categories/details/route.ts  # GET /api/call-categories/details
+│   │   ├── conversations/route.ts        # GET /api/conversations (paginated detail)
+│   │   ├── metrics/route.ts              # GET /api/metrics (2-step aggregation)
+│   │   ├── trends/route.ts               # GET /api/trends (daily rollups)
+│   │   └── test/route.ts                 # GET /api/test (diagnostic ping)
+│   ├── globals.css                # Tailwind base + global theming + datepicker overrides
+│   ├── layout.tsx                 # Root layout wrapper with Providers + metadata
+│   ├── login/page.tsx             # Credentials form + background prefetching
+│   ├── page.tsx                   # Dashboard shell and data orchestration
+│   └── providers.tsx              # React Query provider (singleton QueryClient)
+├── components/                    # Client-side presentation widgets
+│   ├── AgentCard.tsx
+│   ├── AgentDetailModal.tsx
+│   ├── CategoryDetailsModal.tsx
+│   ├── ConversationsTable.tsx
+│   ├── DateRangePicker.tsx
+│   ├── LoadingSpinner.tsx
+│   ├── MetricCard.tsx
+│   └── Charts/
+│       ├── AverageMessagesChart.tsx
+│       ├── CallCategoriesChart.tsx
+│       ├── CallVolumeChart.tsx
+│       ├── DirectionDonutChart.tsx
+│       ├── DurationTrendChart.tsx
+│       ├── HangupRateChart.tsx
+│       ├── StatusPieChart.tsx
+│       └── SuccessRateChart.tsx
+├── lib/                           # Shared server/client utilities
+│   ├── calculations.ts            # Pure functions for metrics + hangup rate
+│   ├── supabase.ts                # Supabase client factory + date helpers
+│   └── utils.ts                   # Formatting + className helpers
+├── middleware.ts                  # NextAuth-protected route matcher
+├── next-env.d.ts                  # Next.js TypeScript ambient types (generated)
+├── next.config.js                 # Next.js runtime configuration
+├── node_modules/                  # Installed dependencies (generated)
+├── package-lock.json              # NPM lockfile
+├── package.json                   # Scripts + dependency manifest
+├── postcss.config.js              # Tailwind/PostCSS pipeline config
+├── tailwind.config.ts             # Tailwind theme and scanning rules
+├── tsconfig.json                  # Project-wide TS compiler options
+└── types/                         # TypeScript interfaces
+    ├── index.ts                   # Conversation, Agent, Metric, and helper types
+    └── next-auth.d.ts             # NextAuth module augmentation
 ```
+
+> `*` Sensitive files that never leave the local environment. Keep `.env.local` out of source control.
 
 ---
 
