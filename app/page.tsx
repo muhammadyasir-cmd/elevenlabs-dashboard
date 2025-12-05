@@ -120,7 +120,7 @@ export default function Dashboard() {
   }, [metrics]);
   const metricsOrder = useMemo(() => {
     const order = new Map<string, number>();
-    metrics.forEach((metric, index) => {
+    metrics.forEach((metric: AgentMetrics, index) => {
       order.set(metric.agent_id, index);
     });
     return order;
