@@ -163,7 +163,7 @@ export default function Dashboard() {
   };
   const filteredAndSortedAgents = useMemo(() => {
     const getMetric = (agentId: string) => metricsByAgentId.get(agentId);
-    const withIndex = searchFilteredAgents.map((agent, index) => ({ agent, index }));
+    const withIndex = searchFilteredAgents.map((agent: Agent, index: number) => ({ agent, index }));
 
     const comparisonChain: Array<(a: Agent | undefined, b: Agent | undefined) => number> = [];
 
@@ -241,7 +241,7 @@ export default function Dashboard() {
     }
 
     const sorted = withIndex
-      .map((entry) => ({ ...entry }))
+      .map((entry: { agent: Agent; index: number }) => ({ ...entry }))
       .sort((a, b) => {
         for (const compare of comparisonChain) {
           const result = compare(a.agent, b.agent);
@@ -253,7 +253,7 @@ export default function Dashboard() {
         if (defaultA !== defaultB) return defaultA - defaultB;
         return a.index - b.index;
       })
-      .map((entry) => entry.agent);
+      .map((entry: { agent: Agent; index: number }) => entry.agent);
 
     return sorted;
   }, [
@@ -268,7 +268,7 @@ export default function Dashboard() {
     hangupRateByAgent,
   ]);
   const filteredAndSortedMetrics = useMemo(() => {
-    return filteredAndSortedAgents.map((agent) => {
+    return filteredAndSortedAgents.map((agent: Agent) => {
       const metric = metricsByAgentId.get(agent.agent_id);
       const hangupRate = hangupRateByAgent.get(agent.agent_id) ?? 0;
       if (metric) {
@@ -357,7 +357,7 @@ export default function Dashboard() {
               <div>Date Range: {dateRange.startDate} to {dateRange.endDate}</div>
               <div className="mt-2 border-t border-yellow-700 pt-2">
                 <div className="font-bold mb-1">Debug Log:</div>
-                {debugInfo.map((info, idx) => (
+                {debugInfo.map((info: string, idx: number) => (
                   <div key={idx} className="text-yellow-200">{info}</div>
                 ))}
               </div>
@@ -655,7 +655,7 @@ export default function Dashboard() {
                                 if (Math.abs(page - currentPage) <= 1) return true;
                                 return false;
                               })
-                              .map((page, index, array) => {
+                              .map((page: number, index: number, array: number[]) => {
                                 // Add ellipsis if there's a gap
                                 const showEllipsisBefore = index > 0 && array[index - 1] !== page - 1;
                                 return (
