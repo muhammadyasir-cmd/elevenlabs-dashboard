@@ -113,7 +113,7 @@ export default function Dashboard() {
   const error = agentsError || metricsError;
   const metricsByAgentId = useMemo(() => {
     const map = new Map<string, AgentMetrics>();
-    metrics.forEach((metric) => {
+    metrics.forEach((metric: AgentMetrics) => {
       map.set(metric.agent_id, metric);
     });
     return map;
