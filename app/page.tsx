@@ -120,7 +120,7 @@ export default function Dashboard() {
   }, [metrics]);
   const metricsOrder = useMemo(() => {
     const order = new Map<string, number>();
-    metrics.forEach((metric: AgentMetrics, index) => {
+    metrics.forEach((metric: AgentMetrics, index: number) => {
       order.set(metric.agent_id, index);
     });
     return order;
@@ -242,7 +242,7 @@ export default function Dashboard() {
 
     const sorted = withIndex
       .map((entry: { agent: Agent; index: number }) => ({ ...entry }))
-      .sort((a, b) => {
+      .sort((a: { agent: Agent; index: number }, b: { agent: Agent; index: number }) => {
         for (const compare of comparisonChain) {
           const result = compare(a.agent, b.agent);
           if (result !== 0) return result;
