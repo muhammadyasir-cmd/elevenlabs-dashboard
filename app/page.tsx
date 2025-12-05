@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { signOut } from 'next-auth/react';
 import { Agent, AgentMetrics, DateRange, CallCategory } from '@/types';
@@ -27,6 +27,11 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [totalCallsFilter, setTotalCallsFilter] = useState<string>('All');
+  const [avgDurationFilter, setAvgDurationFilter] = useState<string>('All');
+  const [avgMessagesFilter, setAvgMessagesFilter] = useState<string>('All');
+  const [successRateFilter, setSuccessRateFilter] = useState<string>('All');
+  const [hangupRateFilter, setHangupRateFilter] = useState<string>('All');
   const menuRef = useRef<HTMLDivElement>(null);
   const itemsPerPage = 20;
 
@@ -106,24 +111,195 @@ export default function Dashboard() {
   const callCategoriesTotal = categoriesData?.totalCalls || 0;
   const loading = agentsLoading || metricsLoading;
   const error = agentsError || metricsError;
-  const filteredMetrics = normalizedSearchQuery
-    ? metrics.filter((metric: AgentMetrics) =>
-        metric.agent_name.toLowerCase().includes(normalizedSearchQuery)
-      )
-    : metrics;
-  const paginatedMetrics = filteredMetrics.slice(
+  const metricsByAgentId = useMemo(() => {
+    const map = new Map<string, AgentMetrics>();
+    metrics.forEach((metric) => {
+      map.set(metric.agent_id, metric);
+    });
+    return map;
+  }, [metrics]);
+  const metricsOrder = useMemo(() => {
+    const order = new Map<string, number>();
+    metrics.forEach((metric, index) => {
+      order.set(metric.agent_id, index);
+    });
+    return order;
+  }, [metrics]);
+  const searchFilteredAgents = normalizedSearchQuery
+    ? agents.filter((agent: Agent) => agent.agent_name.toLowerCase().includes(normalizedSearchQuery))
+    : agents;
+  const hangupRateByAgent = useMemo(() => {
+    const rateMap = new Map<string, number>();
+    // If the API ever returns per-agent categories, support both shapes.
+    const categories = categoriesData?.categories || [];
+    categories.forEach((category: any) => {
+      if (category?.agent_id || category?.agentId) {
+        const agentId = category.agent_id || category.agentId;
+        const totalCalls = category.totalCalls ?? category.total ?? 0;
+        const hangupCount =
+          category.hangupCount ??
+          category.hangups ??
+          (Array.isArray(category.categories)
+            ? (category.categories.find((c: any) => c.category === 'Hangups')?.count ?? 0)
+            : 0);
+        const rate = totalCalls > 0 ? (hangupCount / totalCalls) * 100 : 0;
+        rateMap.set(agentId, rate);
+      }
+    });
+    return rateMap;
+  }, [categoriesData]);
+  const anyFilterActive =
+    totalCallsFilter !== 'All' ||
+    avgDurationFilter !== 'All' ||
+    avgMessagesFilter !== 'All' ||
+    successRateFilter !== 'All' ||
+    hangupRateFilter !== 'All';
+  const clearAllFilters = () => {
+    setTotalCallsFilter('All');
+    setAvgDurationFilter('All');
+    setAvgMessagesFilter('All');
+    setSuccessRateFilter('All');
+    setHangupRateFilter('All');
+  };
+  const filteredAndSortedAgents = useMemo(() => {
+    const getMetric = (agentId: string) => metricsByAgentId.get(agentId);
+    const withIndex = searchFilteredAgents.map((agent, index) => ({ agent, index }));
+
+    const comparisonChain: Array<(a: Agent | undefined, b: Agent | undefined) => number> = [];
+
+    const compareMetricValue = (
+      getter: (metric?: AgentMetrics) => number,
+      direction: 'asc' | 'desc'
+    ) => {
+      return (aAgent?: Agent, bAgent?: Agent) => {
+        if (!aAgent && !bAgent) return 0;
+        if (aAgent && !bAgent) return -1;
+        if (!aAgent && bAgent) return 1;
+        const aMetric = aAgent ? getMetric(aAgent.agent_id) : undefined;
+        const bMetric = bAgent ? getMetric(bAgent.agent_id) : undefined;
+
+        const aHas = Boolean(aMetric);
+        const bHas = Boolean(bMetric);
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+
+        const aValue = getter(aMetric);
+        const bValue = getter(bMetric);
+        const diff = direction === 'desc' ? bValue - aValue : aValue - bValue;
+        if (diff !== 0) return diff;
+        return 0;
+      };
+    };
+
+    if (totalCallsFilter !== 'All') {
+      comparisonChain.push(
+        compareMetricValue(
+          (metric) => metric?.totalConversations ?? 0,
+          totalCallsFilter === 'Highest First' ? 'desc' : 'asc'
+        )
+      );
+    }
+
+    if (avgDurationFilter !== 'All') {
+      comparisonChain.push(
+        compareMetricValue(
+          (metric) => metric?.avgCallDuration ?? 0,
+          avgDurationFilter === 'Longest First' ? 'desc' : 'asc'
+        )
+      );
+    }
+
+    if (avgMessagesFilter !== 'All') {
+      comparisonChain.push(
+        compareMetricValue(
+          (metric) => metric?.avgMessages ?? 0,
+          avgMessagesFilter === 'Most First' ? 'desc' : 'asc'
+        )
+      );
+    }
+
+    if (successRateFilter !== 'All') {
+      comparisonChain.push(
+        compareMetricValue(
+          (metric) => metric?.successRate ?? 0,
+          successRateFilter === 'Highest First' ? 'desc' : 'asc'
+        )
+      );
+    }
+
+    if (hangupRateFilter !== 'All') {
+      comparisonChain.push((aAgent?: Agent, bAgent?: Agent) => {
+        if (!aAgent && !bAgent) return 0;
+        if (aAgent && !bAgent) return -1;
+        if (!aAgent && bAgent) return 1;
+        const aRate = aAgent ? hangupRateByAgent.get(aAgent.agent_id) ?? 0 : 0;
+        const bRate = bAgent ? hangupRateByAgent.get(bAgent.agent_id) ?? 0 : 0;
+        const diff = hangupRateFilter === 'Lowest First' ? aRate - bRate : bRate - aRate;
+        if (diff !== 0) return diff;
+        return 0;
+      });
+    }
+
+    const sorted = withIndex
+      .map((entry) => ({ ...entry }))
+      .sort((a, b) => {
+        for (const compare of comparisonChain) {
+          const result = compare(a.agent, b.agent);
+          if (result !== 0) return result;
+        }
+
+        const defaultA = metricsOrder.get(a.agent.agent_id) ?? Number.MAX_SAFE_INTEGER;
+        const defaultB = metricsOrder.get(b.agent.agent_id) ?? Number.MAX_SAFE_INTEGER;
+        if (defaultA !== defaultB) return defaultA - defaultB;
+        return a.index - b.index;
+      })
+      .map((entry) => entry.agent);
+
+    return sorted;
+  }, [
+    avgDurationFilter,
+    avgMessagesFilter,
+    hangupRateFilter,
+    metricsByAgentId,
+    metricsOrder,
+    searchFilteredAgents,
+    successRateFilter,
+    totalCallsFilter,
+    hangupRateByAgent,
+  ]);
+  const filteredAndSortedMetrics = useMemo(() => {
+    return filteredAndSortedAgents.map((agent) => {
+      const metric = metricsByAgentId.get(agent.agent_id);
+      const hangupRate = hangupRateByAgent.get(agent.agent_id) ?? 0;
+      if (metric) {
+        return { ...metric, hangupRate };
+      }
+      return {
+        agent_id: agent.agent_id,
+        agent_name: agent.agent_name,
+        totalConversations: 0,
+        avgCallDuration: 0,
+        avgMessages: 0,
+        successRate: 0,
+        statusBreakdown: {} as Record<string, number>,
+        directionBreakdown: {} as Record<string, number>,
+        hangupRate,
+      };
+    });
+  }, [filteredAndSortedAgents, hangupRateByAgent, metricsByAgentId]);
+  const paginatedMetrics = filteredAndSortedMetrics.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-  const filteredMetricsCount = filteredMetrics.length;
-  const totalFilteredPages = Math.max(1, Math.ceil(filteredMetrics.length / itemsPerPage));
+  const filteredMetricsCount = filteredAndSortedMetrics.length;
+  const totalFilteredPages = Math.max(1, Math.ceil(filteredAndSortedMetrics.length / itemsPerPage));
 
   // Reset to first page when data changes
   useEffect(() => {
     if (metrics.length > 0) {
       setCurrentPage(1);
     }
-  }, [metrics.length, normalizedSearchQuery]);
+  }, [metrics.length, normalizedSearchQuery, totalCallsFilter, avgDurationFilter, avgMessagesFilter, successRateFilter, hangupRateFilter]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -347,7 +523,85 @@ export default function Dashboard() {
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-colors"
                       />
                     </div>
-                    <p className="text-sm text-gray-400 mt-2">
+
+                    {/* Filter Bar */}
+                    <div className="flex flex-row flex-wrap gap-4 mb-4 items-end mt-4">
+                      <div className="flex flex-col">
+                        <label className="text-sm text-gray-400 mb-1">Sort by Total Calls</label>
+                        <select
+                          value={totalCallsFilter}
+                          onChange={(event) => setTotalCallsFilter(event.target.value)}
+                          className="w-48 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                        >
+                          <option>All</option>
+                          <option>Highest First</option>
+                          <option>Lowest First</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <label className="text-sm text-gray-400 mb-1">Sort by Avg Duration</label>
+                        <select
+                          value={avgDurationFilter}
+                          onChange={(event) => setAvgDurationFilter(event.target.value)}
+                          className="w-48 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                        >
+                          <option>All</option>
+                          <option>Longest First</option>
+                          <option>Shortest First</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <label className="text-sm text-gray-400 mb-1">Sort by Avg Messages</label>
+                        <select
+                          value={avgMessagesFilter}
+                          onChange={(event) => setAvgMessagesFilter(event.target.value)}
+                          className="w-48 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                        >
+                          <option>All</option>
+                          <option>Most First</option>
+                          <option>Least First</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <label className="text-sm text-gray-400 mb-1">Sort by Success Rate</label>
+                        <select
+                          value={successRateFilter}
+                          onChange={(event) => setSuccessRateFilter(event.target.value)}
+                          className="w-48 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                        >
+                          <option>All</option>
+                          <option>Highest First</option>
+                          <option>Lowest First</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <label className="text-sm text-gray-400 mb-1">Sort by Hangup Rate</label>
+                        <select
+                          value={hangupRateFilter}
+                          onChange={(event) => setHangupRateFilter(event.target.value)}
+                          className="w-48 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                        >
+                          <option>All</option>
+                          <option>Lowest First</option>
+                          <option>Highest First</option>
+                        </select>
+                      </div>
+
+                      {anyFilterActive && (
+                        <button
+                          onClick={clearAllFilters}
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
+                        >
+                          Clear All Filters
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-sm text-gray-400">
                       {filteredMetricsCount} agent{filteredMetricsCount === 1 ? '' : 's'} found
                     </p>
                   </div>
@@ -359,7 +613,7 @@ export default function Dashboard() {
                       ⚠️ No metrics data available. Agents were found but metrics calculation failed.
                     </p>
                   </div>
-                ) : filteredMetrics.length === 0 ? (
+                ) : filteredAndSortedMetrics.length === 0 ? (
                   <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 text-center">
                     <p className="text-gray-300 mb-2">No agents match your search.</p>
                     <p className="text-gray-500 text-sm">Try a different name or clear the search box.</p>
@@ -377,7 +631,7 @@ export default function Dashboard() {
                     </div>
                     
                     {/* Pagination Controls */}
-                    {filteredMetrics.length > itemsPerPage && (
+                    {filteredAndSortedMetrics.length > itemsPerPage && (
                       <div className="mt-8 flex flex-col items-center gap-4">
                         <div className="text-sm text-gray-400">
                           Page {currentPage} of {totalFilteredPages}
