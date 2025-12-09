@@ -586,8 +586,8 @@ export default function Dashboard() {
                           className="w-48 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
                         >
                           <option>All</option>
-                          <option>Lowest First</option>
                           <option>Highest First</option>
+                          <option>Lowest First</option>
                         </select>
                       </div>
 

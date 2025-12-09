@@ -108,11 +108,30 @@ export function formatDuration(seconds: number): string {
   return `${minutes}m ${remainingSeconds}s`;
 }
 
+const pakistanDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Karachi',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function getPakistanDateString(baseDate: Date = new Date()): string {
+  const parts = pakistanDateFormatter.formatToParts(baseDate);
+  const year = parts.find(p => p.type === 'year')?.value ?? '1970';
+  const month = parts.find(p => p.type === 'month')?.value ?? '01';
+  const day = parts.find(p => p.type === 'day')?.value ?? '01';
+  return `${year}-${month}-${day}`;
+}
+
+function getPakistanToday(): Date {
+  // Build a Date anchored to Pakistan time to avoid timezone drift
+  return new Date(`${getPakistanDateString()}T00:00:00+05:00`);
+}
+
 // Helper to get date range (last N days from TODAY)
 export function getDateRange(days: number): { startDate: string; endDate: string } {
-  // Use current date/time - ensure we're using the actual current date
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Use Pakistan time as the reference for "today"
+  const today = getPakistanToday();
   
   // End date is today
   const endDate = new Date(today);
@@ -130,10 +149,8 @@ export function getDateRange(days: number): { startDate: string; endDate: string
     startDate.setTime(minDate.getTime());
   }
   
-  // Format as YYYY-MM-DD
-  const formatDate = (date: Date): string => {
-    return date.toISOString().split('T')[0];
-  };
+  // Format as YYYY-MM-DD in Pakistan time
+  const formatDate = (date: Date): string => pakistanDateFormatter.format(date);
   
   const result = {
     startDate: formatDate(startDate),

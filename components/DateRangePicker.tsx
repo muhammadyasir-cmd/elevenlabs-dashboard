@@ -10,12 +10,43 @@ interface DateRangePickerProps {
   initialRange?: DateRange;
 }
 
+const pakistanDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Karachi',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function getPakistanDateString(baseDate: Date = new Date()): string {
+  // Extract year-month-day in Pakistan time without re-parsing locale strings
+  const parts = pakistanDateFormatter.formatToParts(baseDate);
+  const year = parts.find(p => p.type === 'year')?.value ?? '1970';
+  const month = parts.find(p => p.type === 'month')?.value ?? '01';
+  const day = parts.find(p => p.type === 'day')?.value ?? '01';
+  return `${year}-${month}-${day}`;
+}
+
+function parsePakistanDate(dateString: string): Date {
+  // Parse a YYYY-MM-DD string as Pakistan time
+  return new Date(`${dateString}T00:00:00+05:00`);
+}
+
+function formatPakistanDate(date: Date): string {
+  return pakistanDateFormatter.format(date);
+}
+
+function getPakistanDateAtStartOfDay(): Date {
+  const todayStr = getPakistanDateString();
+  // Create a Date anchored to Pakistan time to avoid timezone drift
+  return parsePakistanDate(todayStr);
+}
+
 // FIXED START DATE: September 15, 2025 (when data collection began)
 const FIXED_START_DATE = '2025-09-15';
 
 // Helper to calculate date range from today backwards
 function getDefaultDateRange(days: number): DateRange {
-  const today = new Date();
+  const today = getPakistanDateAtStartOfDay();
   // Set to end of today (23:59:59) to include today's data
   today.setHours(23, 59, 59, 999);
   
@@ -27,30 +58,30 @@ function getDefaultDateRange(days: number): DateRange {
   startDate.setHours(0, 0, 0, 0);
   
   return {
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: endDate.toISOString().split('T')[0],
+    startDate: formatPakistanDate(startDate),
+    endDate: formatPakistanDate(endDate),
   };
 }
 
 export default function DateRangePicker({ onDateChange, initialRange }: DateRangePickerProps) {
   const defaultRange = getDefaultDateRange(30);
   const [startDate, setStartDate] = useState<Date>(
-    initialRange ? new Date(initialRange.startDate) : new Date(defaultRange.startDate)
+    initialRange ? parsePakistanDate(initialRange.startDate) : parsePakistanDate(defaultRange.startDate)
   );
   const [endDate, setEndDate] = useState<Date>(
-    initialRange ? new Date(initialRange.endDate) : new Date(defaultRange.endDate)
+    initialRange ? parsePakistanDate(initialRange.endDate) : parsePakistanDate(defaultRange.endDate)
   );
 
   useEffect(() => {
     if (initialRange) {
-      setStartDate(new Date(initialRange.startDate));
-      setEndDate(new Date(initialRange.endDate));
+      setStartDate(parsePakistanDate(initialRange.startDate));
+      setEndDate(parsePakistanDate(initialRange.endDate));
     }
   }, [initialRange]);
 
   const handleDateChange = (start: Date | null, end: Date | null) => {
     if (start && end) {
-      const maxDate = new Date();
+      const maxDate = getPakistanDateAtStartOfDay();
       maxDate.setHours(23, 59, 59, 999); // Include today's full day
       
       const minDate = new Date(FIXED_START_DATE); // Fixed start: Sept 15, 2024
@@ -70,8 +101,8 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
       setEndDate(end);
 
       const range: DateRange = {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0],
+        startDate: formatPakistanDate(start),
+        endDate: formatPakistanDate(end),
       };
       onDateChange(range);
     }
@@ -79,7 +110,7 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
 
   const setQuickRange = (days: number) => {
     // Calculate from TODAY backwards
-    const today = new Date();
+    const today = getPakistanDateAtStartOfDay();
     today.setHours(23, 59, 59, 999); // Include today's full day
     
     const end = new Date(today);
@@ -101,7 +132,7 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
 
   const setAllTimeRange = () => {
     // Set to fixed start date (Sept 15, 2024) to today
-    const today = new Date();
+    const today = getPakistanDateAtStartOfDay();
     today.setHours(23, 59, 59, 999);
     
     const start = new Date(FIXED_START_DATE);
@@ -136,7 +167,7 @@ export default function DateRangePicker({ onDateChange, initialRange }: DateRang
           startDate={startDate}
           endDate={endDate}
           minDate={startDate}
-          maxDate={new Date()}
+          maxDate={new Date(`${getPakistanDateString()}T23:59:59.999+05:00`)}
           className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           dateFormat="yyyy-MM-dd"
         />

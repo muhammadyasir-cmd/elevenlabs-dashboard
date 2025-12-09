@@ -6,10 +6,33 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
+const pakistanDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Karachi',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function getPakistanDateString(): string {
+  const parts = pakistanDateFormatter.formatToParts(new Date());
+  const year = parts.find(p => p.type === 'year')?.value ?? '1970';
+  const month = parts.find(p => p.type === 'month')?.value ?? '01';
+  const day = parts.find(p => p.type === 'day')?.value ?? '01';
+  return `${year}-${month}-${day}`;
+}
+
+function formatPakistanDate(date: Date): string {
+  return pakistanDateFormatter.format(date);
+}
+
+function getPakistanToday(): Date {
+  // Build a Date anchored to Pakistan time to avoid timezone drift
+  return new Date(`${getPakistanDateString()}T00:00:00+05:00`);
+}
+
 // Helper to calculate date range from today backwards
 function getDateRange(days: number): { startDate: string; endDate: string } {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getPakistanToday();
   
   const endDate = new Date(today);
   const startDate = new Date(today);
@@ -39,11 +62,10 @@ export default function LoginPage() {
     const range7Days = getDateRange(7);
     const range30Days = getDateRange(30);
     const range90Days = getDateRange(90);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getPakistanToday();
     const allTimeRange = {
       startDate: ALL_TIME_START_DATE,
-      endDate: today.toISOString().split('T')[0],
+      endDate: formatPakistanDate(today),
     };
 
     // Pre-fetch all data in parallel (fire and forget - don't wait)
