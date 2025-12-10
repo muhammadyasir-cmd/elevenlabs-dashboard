@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase, dateToUnix } from '@/lib/supabase';
+import { supabase, getDateRangeTimestamps } from '@/lib/supabase';
 import { Conversation } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -29,12 +29,9 @@ export async function GET(request: Request) {
       );
     }
 
-    // Convert dates to Unix timestamps (seconds)
-    // Equivalent SQL: WHERE start_time_unix_secs >= EXTRACT(EPOCH FROM TIMESTAMP '{startDate} 00:00:00')
-    //   AND start_time_unix_secs <= EXTRACT(EPOCH FROM TIMESTAMP '{endDate} 23:59:59')
-    const startTimestamp = dateToUnix(startDate);
-    const endTimestamp = dateToUnix(endDate);
-    const endTimestampInclusive = endTimestamp + 86400 - 1; // 23:59:59 of end date
+    // Convert dates to Unix timestamps (seconds) - includes full start and end days
+    // Uses "next day" approach: start_time_unix_secs >= startDate AND < (endDate + 1 day)
+    const { startTimestamp, endTimestampExclusive } = getDateRangeTimestamps(startDate, endDate);
 
     // Get total count
     let countQuery = supabase
@@ -42,7 +39,7 @@ export async function GET(request: Request) {
       .select('*', { count: 'exact', head: true })
       .eq('agent_id', agentId)
       .gte('start_time_unix_secs', startTimestamp)
-      .lte('start_time_unix_secs', endTimestampInclusive);
+      .lt('start_time_unix_secs', endTimestampExclusive); // CRITICAL: Use .lt() with next day timestamp to include full end date
 
     const { count, error: countError } = await countQuery;
 
@@ -65,7 +62,7 @@ export async function GET(request: Request) {
       .select('*')
       .eq('agent_id', agentId)
       .gte('start_time_unix_secs', startTimestamp)
-      .lte('start_time_unix_secs', endTimestampInclusive)
+      .lt('start_time_unix_secs', endTimestampExclusive) // CRITICAL: Use .lt() with next day timestamp to include full end date
       .order('start_time_unix_secs', { ascending: false })
       .range(from, to);
 

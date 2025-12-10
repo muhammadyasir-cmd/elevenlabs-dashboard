@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, dateToUnix } from '@/lib/supabase';
+import { supabase, getDateRangeTimestamps } from '@/lib/supabase';
 
 // Cache for 15 minutes
 export const revalidate = 900;
@@ -167,18 +167,18 @@ export async function GET(request: NextRequest) {
     // Build query with optional filters
     let query = supabase
       .from('conversations')
-      .select('conversation_id, call_summary_title, call_duration_secs, message_count, start_time_unix_secs, agent_name');
+      .select('conversation_id, call_summary_title, call_duration_secs, message_count, start_time_unix_secs, agent_name')
+      .order('start_time_unix_secs', { ascending: true }); // CRITICAL: Order by timestamp to ensure consistent pagination
 
     if (agentId) {
       query = query.eq('agent_id', agentId);
     }
 
     if (startDate && endDate) {
-      const startTimestamp = dateToUnix(startDate);
-      const endTimestamp = dateToUnix(endDate) + 86399;
+      const { startTimestamp, endTimestampExclusive } = getDateRangeTimestamps(startDate, endDate);
       query = query
         .gte('start_time_unix_secs', startTimestamp)
-        .lte('start_time_unix_secs', endTimestamp);
+        .lt('start_time_unix_secs', endTimestampExclusive); // CRITICAL: Use .lt() with next day timestamp to include full end date
     }
 
     // Fetch all conversations with pagination

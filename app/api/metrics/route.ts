@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase, dateToUnix } from '@/lib/supabase';
+import { supabase, getDateRangeTimestamps } from '@/lib/supabase';
 import { Conversation } from '@/types';
 import { AgentMetrics } from '@/types';
 
@@ -25,13 +25,13 @@ export async function GET(request: Request) {
       );
     }
 
-    // Convert dates to Unix timestamps (seconds)
-    const startTimestamp = dateToUnix(startDate);
-    const endTimestamp = dateToUnix(endDate);
-    const endTimestampInclusive = endTimestamp + 86400 - 1; // 23:59:59 of end date
+    // Convert dates to Unix timestamps (seconds) - includes full start and end days
+    // Uses "next day" approach: start_time_unix_secs >= startDate AND < (endDate + 1 day)
+    const { startTimestamp, endTimestampExclusive } = getDateRangeTimestamps(startDate, endDate);
 
-    console.log('🟡 [API] /api/metrics - Timestamps:', { startTimestamp, endTimestamp, endTimestampInclusive });
+    console.log('🟡 [API] /api/metrics - Timestamps:', { startTimestamp, endTimestampExclusive });
     console.log('🟡 [API] /api/metrics - Date range:', { startDate, endDate });
+    console.log('🟡 [API] /api/metrics - Filter: start_time_unix_secs >=', startTimestamp, 'AND <', endTimestampExclusive);
 
     // STEP 1: Get all distinct agents in the date range using PAGINATION
     console.log('🟡 [API] /api/metrics - Step 1: Getting distinct agents with pagination...');
@@ -46,7 +46,8 @@ export async function GET(request: Request) {
         .from('conversations')
         .select('agent_id, agent_name')
         .gte('start_time_unix_secs', startTimestamp)
-        .lte('start_time_unix_secs', endTimestampInclusive)
+        .lt('start_time_unix_secs', endTimestampExclusive) // CRITICAL: Use .lt() with next day timestamp to include full end date
+        .order('start_time_unix_secs', { ascending: true }) // CRITICAL: Order by timestamp to ensure consistent pagination
         .range(from, from + pageSize - 1);
 
       if (agentId) {
@@ -117,7 +118,8 @@ export async function GET(request: Request) {
           .select('*')
           .eq('agent_id', agent.agent_id)
           .gte('start_time_unix_secs', startTimestamp)
-          .lte('start_time_unix_secs', endTimestampInclusive)
+          .lt('start_time_unix_secs', endTimestampExclusive) // CRITICAL: Use .lt() with next day timestamp to include full end date
+          .order('start_time_unix_secs', { ascending: true }) // CRITICAL: Order by timestamp to ensure consistent pagination
           .range(convFrom, convFrom + convPageSize - 1);
 
         if (convError) {

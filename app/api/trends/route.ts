@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase, dateToUnix } from '@/lib/supabase';
+import { supabase, getDateRangeTimestamps } from '@/lib/supabase';
 import { calculateDailyMetrics } from '@/lib/calculations';
 import { Conversation } from '@/types';
 
@@ -21,35 +21,55 @@ export async function GET(request: Request) {
       );
     }
 
-    // Convert dates to Unix timestamps (seconds)
-    // Equivalent SQL: WHERE start_time_unix_secs >= EXTRACT(EPOCH FROM TIMESTAMP '{startDate} 00:00:00')
-    //   AND start_time_unix_secs <= EXTRACT(EPOCH FROM TIMESTAMP '{endDate} 23:59:59')
-    const startTimestamp = dateToUnix(startDate);
-    const endTimestamp = dateToUnix(endDate);
-    const endTimestampInclusive = endTimestamp + 86400 - 1; // 23:59:59 of end date
+    // Convert dates to Unix timestamps (seconds) - includes full start and end days
+    // Uses "next day" approach: start_time_unix_secs >= startDate AND < (endDate + 1 day)
+    const { startTimestamp, endTimestampExclusive } = getDateRangeTimestamps(startDate, endDate);
 
-    let query = supabase
-      .from('conversations')
-      .select('*')
-      .gte('start_time_unix_secs', startTimestamp)
-      .lte('start_time_unix_secs', endTimestampInclusive)
-      .order('start_time_unix_secs', { ascending: true });
+    // Fetch ALL conversations using pagination (Supabase has 1000 row limit per request)
+    let allConversations: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (agentId) {
-      query = query.eq('agent_id', agentId);
+    while (hasMore) {
+      let query = supabase
+        .from('conversations')
+        .select('*')
+        .gte('start_time_unix_secs', startTimestamp)
+        .lt('start_time_unix_secs', endTimestampExclusive) // CRITICAL: Use .lt() with next day timestamp to include full end date
+        .order('start_time_unix_secs', { ascending: true }); // CRITICAL: Order by timestamp to ensure consistent pagination
+
+      if (agentId) {
+        query = query.eq('agent_id', agentId);
+      }
+
+      const { data, error } = await query.range(from, from + pageSize - 1);
+
+      if (error) {
+        console.error('❌ [API] /api/trends - Supabase error:', error);
+        return NextResponse.json(
+          { error: error.message },
+          { status: 500 }
+        );
+      }
+
+      if (data && data.length > 0) {
+        allConversations = allConversations.concat(data);
+        console.log(`🔴 [API] /api/trends - Fetched ${data.length} rows (page ${Math.floor(from / pageSize) + 1}), total so far: ${allConversations.length}`);
+        
+        if (data.length < pageSize) {
+          hasMore = false; // Last page
+        } else {
+          from += pageSize; // Next page
+        }
+      } else {
+        hasMore = false; // No data returned
+      }
     }
 
-    const { data, error } = await query;
+    console.log('🟢 [API] /api/trends - Total conversations fetched:', allConversations.length);
+    const conversations = (allConversations as Conversation[]) || [];
 
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    const conversations = (data as Conversation[]) || [];
     const dailyMetrics = calculateDailyMetrics(conversations, startDate, endDate);
 
     return NextResponse.json({ dailyMetrics });

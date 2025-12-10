@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase, dateToUnix } from '@/lib/supabase';
+import { supabase, getDateRangeTimestamps } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -278,13 +278,13 @@ export async function GET(request: Request) {
 
     // Calculate date range timestamps if provided
     let startTimestamp: number | undefined;
-    let endTimestampInclusive: number | undefined;
+    let endTimestampExclusive: number | undefined;
     
     if (startDate && endDate) {
-      startTimestamp = dateToUnix(startDate);
-      const endTimestamp = dateToUnix(endDate);
-      endTimestampInclusive = endTimestamp + 86399; // End of day (23:59:59)
-      console.log('🟡 [API] /api/call-categories - Date range timestamps:', { startTimestamp, endTimestampInclusive });
+      const timestamps = getDateRangeTimestamps(startDate, endDate);
+      startTimestamp = timestamps.startTimestamp;
+      endTimestampExclusive = timestamps.endTimestampExclusive;
+      console.log('🟡 [API] /api/call-categories - Date range timestamps:', { startTimestamp, endTimestampExclusive });
     }
 
     // Determine fetch message based on filters
@@ -305,6 +305,7 @@ export async function GET(request: Request) {
       let query = supabase
         .from('conversations')
         .select('conversation_id, call_summary_title, call_duration_secs, message_count, start_time_unix_secs, agent_name')
+        .order('start_time_unix_secs', { ascending: true }) // CRITICAL: Order by timestamp to ensure consistent pagination
         .range(from, from + pageSize - 1)
         .limit(pageSize);
 
@@ -313,10 +314,10 @@ export async function GET(request: Request) {
         query = query.eq('agent_id', agentId);
       }
 
-      if (startTimestamp !== undefined && endTimestampInclusive !== undefined) {
+      if (startTimestamp !== undefined && endTimestampExclusive !== undefined) {
         query = query
           .gte('start_time_unix_secs', startTimestamp)
-          .lte('start_time_unix_secs', endTimestampInclusive);
+          .lt('start_time_unix_secs', endTimestampExclusive); // CRITICAL: Use .lt() with next day timestamp to include full end date
       }
 
       const { data, error } = await query;

@@ -90,6 +90,59 @@ export function dateToUnix(dateString: string): number {
   return timestamp;
 }
 
+// Helper to get the next day's timestamp (for exclusive end date filtering)
+function getNextDayTimestamp(dateString: string): number {
+  // Parse date string as YYYY-MM-DD
+  const [year, month, day] = dateString.split('-').map(Number);
+  
+  // Create date object for the end date at 00:00:00 UTC
+  const endDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  
+  // Add 1 day (24 hours = 86400000 milliseconds)
+  const nextDay = new Date(endDate.getTime() + 86400000);
+  
+  // Convert to Unix timestamp (seconds)
+  const timestamp = Math.floor(nextDay.getTime() / 1000);
+  
+  console.log('🔵 [getNextDayTimestamp]', {
+    inputDate: dateString,
+    endDateUTC: endDate.toISOString(),
+    nextDayUTC: nextDay.toISOString(),
+    timestamp,
+  });
+  
+  return timestamp;
+}
+
+// Shared utility to convert date range to Unix timestamps for filtering
+// Returns timestamps that include the FULL start and end days
+// Uses "next day" approach: start_time_unix_secs >= startDate 00:00:00 AND < (endDate + 1 day) 00:00:00
+export function getDateRangeTimestamps(startDate: string, endDate: string): { 
+  startTimestamp: number; 
+  endTimestampExclusive: number; // Next day at 00:00:00 (use with .lt())
+} {
+  // Start timestamp: beginning of start date (00:00:00)
+  const startTimestamp = dateToUnix(startDate);
+  
+  // End timestamp: beginning of NEXT day (00:00:00)
+  // This allows us to use .lt() to include the full end date
+  // Example: For endDate "2025-12-10", this returns timestamp for "2025-12-11 00:00:00"
+  // Query: start_time_unix_secs < (2025-12-11 00:00:00) includes all of Dec 10
+  const endTimestampExclusive = getNextDayTimestamp(endDate);
+  
+  console.log('🔵 [getDateRangeTimestamps]', {
+    startDate,
+    endDate,
+    startTimestamp,
+    endTimestampExclusive,
+    startDateISO: new Date(startTimestamp * 1000).toISOString(),
+    endDateExclusiveISO: new Date(endTimestampExclusive * 1000).toISOString(),
+    note: 'Using .lt() with endTimestampExclusive to include full end date',
+  });
+  
+  return { startTimestamp, endTimestampExclusive };
+}
+
 // Helper to format Unix timestamp to date string
 export function unixToDate(timestamp: number): string {
   return new Date(timestamp * 1000).toISOString().split('T')[0];
