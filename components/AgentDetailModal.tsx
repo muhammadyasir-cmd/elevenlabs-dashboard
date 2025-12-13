@@ -68,19 +68,23 @@ export default function AgentDetailModal({
   }, [agentId, dateRange]);
 
   // Fetch call categories when modal opens or date range changes
+  // IMPORTANT: Uses same date range as agent metrics to ensure hangup rates match
   useEffect(() => {
     const fetchCallCategories = async () => {
       setCallCategoriesLoading(true);
       try {
-        const response = await fetch(
-          `/api/call-categories?agent_id=${agentId}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`
-        );
+        // Include date filters to match the date range used for agent metrics
+        const url = `/api/call-categories?agent_id=${agentId}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`;
+        console.log('🔍 [AgentDetailModal] Fetching call categories with date filter:', url);
+        
+        const response = await fetch(url);
         
         if (!response.ok) {
           throw new Error('Failed to fetch call categories');
         }
         
         const data = await response.json();
+        console.log('🔍 [AgentDetailModal] Call categories data:', data);
         setCallCategories(data.categories || []);
       } catch (error) {
         console.error('Failed to fetch call categories:', error);
@@ -93,7 +97,7 @@ export default function AgentDetailModal({
     if (agentId && dateRange.startDate && dateRange.endDate) {
       fetchCallCategories();
     }
-  }, [agentId, dateRange]);
+  }, [agentId, dateRange.startDate, dateRange.endDate]);
 
   if (loading) {
     return (

@@ -61,6 +61,35 @@ export default function AgentCard({ metrics, onViewDetails }: AgentCardProps) {
         </div>
       </div>
 
+      {metrics.hangupRate !== undefined && (
+        <div className="mb-3">
+          <div className="flex justify-between items-center mb-1">
+            <p className="text-xs text-gray-400">Hangup Rate</p>
+            <p className={`text-base font-bold ${
+              metrics.hangupRate <= 10
+                ? 'text-green-400'
+                : metrics.hangupRate <= 25
+                ? 'text-yellow-400'
+                : 'text-red-400'
+            }`}>
+              {metrics.hangupRate.toFixed(1)}%
+            </p>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-1.5">
+            <div
+              className={`h-1.5 rounded-full ${
+                metrics.hangupRate <= 10
+                  ? 'bg-green-500'
+                  : metrics.hangupRate <= 25
+                  ? 'bg-yellow-500'
+                  : 'bg-red-500'
+              }`}
+              style={{ width: `${Math.min(metrics.hangupRate, 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <button
         onClick={() => onViewDetails(metrics.agent_id)}
         className="w-full mt-3 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"

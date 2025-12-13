@@ -12,6 +12,7 @@ export interface Conversation {
   call_summary_title?: string | null;
   direction?: string | null;
   rating?: string | null;
+  summary_category?: string | null;
   created_at?: string;
 }
 
@@ -27,6 +28,7 @@ export interface AgentMetrics {
   avgCallDuration: number;
   avgMessages: number;
   successRate: number;
+  hangupRate?: number;
   statusBreakdown: Record<string, number>;
   directionBreakdown: Record<string, number>;
 }

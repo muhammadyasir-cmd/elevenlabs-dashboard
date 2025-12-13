@@ -156,6 +156,22 @@ export async function GET(request: Request) {
       const successCount = allConversations.filter((c: Conversation) => c.call_successful === 'success').length;
       const successRate = parseFloat(((successCount / totalConversations) * 100).toFixed(1));
 
+      // Calculate hangup rate using summary_category column
+      // IMPORTANT: Only count conversations with a category (exclude null summary_category)
+      // This matches the behavior of /api/call-categories which excludes null categories
+      const categorizedConversations = allConversations.filter(
+        (c: Conversation) => c.summary_category !== null && c.summary_category !== undefined
+      );
+      const categorizedCount = categorizedConversations.length;
+      
+      const hangupConversations = categorizedConversations.filter(
+        (c: Conversation) => c.summary_category === 'Hangups'
+      ).length;
+      
+      const hangupRate = categorizedCount > 0 
+        ? Number(((hangupConversations / categorizedCount) * 100).toFixed(2))
+        : 0;
+
       const statusBreakdown: Record<string, number> = {};
       allConversations.forEach((c: Conversation) => {
         const status = c.status || 'unknown';
@@ -175,6 +191,7 @@ export async function GET(request: Request) {
         avgCallDuration,
         avgMessages,
         successRate,
+        hangupRate,
         statusBreakdown,
         directionBreakdown,
       };

@@ -130,24 +130,21 @@ export default function Dashboard() {
     : agents;
   const hangupRateByAgent = useMemo(() => {
     const rateMap = new Map<string, number>();
-    // If the API ever returns per-agent categories, support both shapes.
-    const categories = categoriesData?.categories || [];
-    categories.forEach((category: any) => {
-      if (category?.agent_id || category?.agentId) {
-        const agentId = category.agent_id || category.agentId;
-        const totalCalls = category.totalCalls ?? category.total ?? 0;
-        const hangupCount =
-          category.hangupCount ??
-          category.hangups ??
-          (Array.isArray(category.categories)
-            ? (category.categories.find((c: any) => c.category === 'Hangups')?.count ?? 0)
-            : 0);
-        const rate = totalCalls > 0 ? (hangupCount / totalCalls) * 100 : 0;
-        rateMap.set(agentId, rate);
-      }
+
+    // Use hangupRate directly from metrics API response
+    metrics.forEach((metric: AgentMetrics) => {
+      const hangupRate = metric.hangupRate ?? 0;
+      rateMap.set(metric.agent_id, hangupRate);
     });
+
+    console.log('🔍 Hangup rates map:', Array.from(rateMap.entries()));
     return rateMap;
-  }, [categoriesData]);
+  }, [metrics]);
+
+  // Log filter changes for hangup rate
+  useEffect(() => {
+    console.log('🔍 Hangup filter changed:', hangupRateFilter);
+  }, [hangupRateFilter]);
   const anyFilterActive =
     totalCallsFilter !== 'All' ||
     avgDurationFilter !== 'All' ||
@@ -235,6 +232,14 @@ export default function Dashboard() {
         const aRate = aAgent ? hangupRateByAgent.get(aAgent.agent_id) ?? 0 : 0;
         const bRate = bAgent ? hangupRateByAgent.get(bAgent.agent_id) ?? 0 : 0;
         const diff = hangupRateFilter === 'Lowest First' ? aRate - bRate : bRate - aRate;
+        console.log('🔍 Hangup comparator', {
+          hangupRateFilter,
+          aAgentId: aAgent?.agent_id,
+          bAgentId: bAgent?.agent_id,
+          aRate,
+          bRate,
+          diff,
+        });
         if (diff !== 0) return diff;
         return 0;
       });
@@ -270,7 +275,8 @@ export default function Dashboard() {
   const filteredAndSortedMetrics = useMemo(() => {
     return filteredAndSortedAgents.map((agent: Agent) => {
       const metric = metricsByAgentId.get(agent.agent_id);
-      const hangupRate = hangupRateByAgent.get(agent.agent_id) ?? 0;
+      // Prefer hangupRate from metric (API response), fallback to Map
+      const hangupRate = metric?.hangupRate ?? hangupRateByAgent.get(agent.agent_id) ?? 0;
       if (metric) {
         return { ...metric, hangupRate };
       }
