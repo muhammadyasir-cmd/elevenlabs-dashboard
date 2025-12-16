@@ -9,9 +9,9 @@ interface AgentCardProps {
 }
 
 export default function AgentCard({ metrics, onViewDetails }: AgentCardProps) {
-  const getSuccessRateColor = (rate: number) => {
-    if (rate >= 80) return 'text-green-400';
-    if (rate >= 60) return 'text-yellow-400';
+  const getRevenueRateColor = (rate: number) => {
+    if (rate >= 20) return 'text-green-400';
+    if (rate >= 10) return 'text-yellow-400';
     return 'text-red-400';
   };
 
@@ -40,26 +40,22 @@ export default function AgentCard({ metrics, onViewDetails }: AgentCardProps) {
         </div>
       </div>
 
-      <div className="mb-3">
-        <div className="flex justify-between items-center mb-1">
-          <p className="text-xs text-gray-400">Success Rate</p>
-          <p className={`text-base font-bold ${getSuccessRateColor(metrics.successRate)}`}>
-            {metrics.successRate}%
-          </p>
+      {metrics.revenueOpportunityRate !== undefined && (
+        <div className="mb-3">
+          <div className="flex justify-between items-center mb-1">
+            <p className="text-xs text-gray-400">Revenue Opportunity</p>
+            <p className={`text-base font-bold ${getRevenueRateColor(metrics.revenueOpportunityRate)}`}>
+              {metrics.revenueOpportunityRate.toFixed(1)}%
+            </p>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-1.5">
+            <div
+              className="h-1.5 rounded-full bg-green-500"
+              style={{ width: `${Math.min(metrics.revenueOpportunityRate, 100)}%` }}
+            />
+          </div>
         </div>
-        <div className="w-full bg-gray-700 rounded-full h-1.5">
-          <div
-            className={`h-1.5 rounded-full ${
-              metrics.successRate >= 80
-                ? 'bg-green-500'
-                : metrics.successRate >= 60
-                ? 'bg-yellow-500'
-                : 'bg-red-500'
-            }`}
-            style={{ width: `${Math.min(metrics.successRate, 100)}%` }}
-          />
-        </div>
-      </div>
+      )}
 
       {metrics.hangupRate !== undefined && (
         <div className="mb-3">
@@ -99,4 +95,3 @@ export default function AgentCard({ metrics, onViewDetails }: AgentCardProps) {
     </div>
   );
 }
-

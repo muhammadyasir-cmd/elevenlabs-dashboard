@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [avgMessagesFilter, setAvgMessagesFilter] = useState<string>('All');
   const [successRateFilter, setSuccessRateFilter] = useState<string>('All');
   const [hangupRateFilter, setHangupRateFilter] = useState<string>('All');
+  const [revenueRateFilter, setRevenueRateFilter] = useState<string>('All');
   const menuRef = useRef<HTMLDivElement>(null);
   const itemsPerPage = 20;
 
@@ -141,6 +142,18 @@ export default function Dashboard() {
     return rateMap;
   }, [metrics]);
 
+  const revenueRateByAgent = useMemo(() => {
+    const rateMap = new Map<string, number>();
+
+    metrics.forEach((metric: AgentMetrics) => {
+      const revenueRate = metric.revenueOpportunityRate ?? 0;
+      rateMap.set(metric.agent_id, revenueRate);
+    });
+
+    console.log('🔍 Revenue opportunity rates map:', Array.from(rateMap.entries()));
+    return rateMap;
+  }, [metrics]);
+
   // Log filter changes for hangup rate
   useEffect(() => {
     console.log('🔍 Hangup filter changed:', hangupRateFilter);
@@ -150,13 +163,15 @@ export default function Dashboard() {
     avgDurationFilter !== 'All' ||
     avgMessagesFilter !== 'All' ||
     successRateFilter !== 'All' ||
-    hangupRateFilter !== 'All';
+    hangupRateFilter !== 'All' ||
+    revenueRateFilter !== 'All';
   const clearAllFilters = () => {
     setTotalCallsFilter('All');
     setAvgDurationFilter('All');
     setAvgMessagesFilter('All');
     setSuccessRateFilter('All');
     setHangupRateFilter('All');
+    setRevenueRateFilter('All');
   };
   const filteredAndSortedAgents = useMemo(() => {
     const getMetric = (agentId: string) => metricsByAgentId.get(agentId);
@@ -245,7 +260,28 @@ export default function Dashboard() {
       });
     }
 
-    const sorted = withIndex
+    if (revenueRateFilter !== 'All') {
+      comparisonChain.push((aAgent?: Agent, bAgent?: Agent) => {
+        if (!aAgent && !bAgent) return 0;
+        if (aAgent && !bAgent) return -1;
+        if (!aAgent && bAgent) return 1;
+        const aRate = aAgent ? revenueRateByAgent.get(aAgent.agent_id) ?? 0 : 0;
+        const bRate = bAgent ? revenueRateByAgent.get(bAgent.agent_id) ?? 0 : 0;
+        const diff = revenueRateFilter === 'Lowest First' ? aRate - bRate : bRate - aRate;
+        console.log('🔍 Revenue comparator', {
+          revenueRateFilter,
+          aAgentId: aAgent?.agent_id,
+          bAgentId: bAgent?.agent_id,
+          aRate,
+          bRate,
+          diff,
+        });
+        if (diff !== 0) return diff;
+        return 0;
+      });
+    }
+
+    let sortedAgents = withIndex
       .map((entry: { agent: Agent; index: number }) => ({ ...entry }))
       .sort((a: { agent: Agent; index: number }, b: { agent: Agent; index: number }) => {
         for (const compare of comparisonChain) {
@@ -260,7 +296,14 @@ export default function Dashboard() {
       })
       .map((entry: { agent: Agent; index: number }) => entry.agent);
 
-    return sorted;
+    // TEMP WORKAROUND: Exclude Dealer Auto Glass from Revenue Opportunity sorting only
+    if (revenueRateFilter !== 'All') {
+      sortedAgents = sortedAgents.filter(
+        (agent: Agent) => agent.agent_id !== 'agent_5801k9wb9paqesdbg5n77bsesgec'
+      );
+    }
+
+    return sortedAgents;
   }, [
     avgDurationFilter,
     avgMessagesFilter,
@@ -271,14 +314,17 @@ export default function Dashboard() {
     successRateFilter,
     totalCallsFilter,
     hangupRateByAgent,
+    revenueRateFilter,
+    revenueRateByAgent,
   ]);
   const filteredAndSortedMetrics = useMemo(() => {
     return filteredAndSortedAgents.map((agent: Agent) => {
       const metric = metricsByAgentId.get(agent.agent_id);
       // Prefer hangupRate from metric (API response), fallback to Map
       const hangupRate = metric?.hangupRate ?? hangupRateByAgent.get(agent.agent_id) ?? 0;
+      const revenueOpportunityRate = metric?.revenueOpportunityRate ?? revenueRateByAgent.get(agent.agent_id) ?? 0;
       if (metric) {
-        return { ...metric, hangupRate };
+        return { ...metric, hangupRate, revenueOpportunityRate };
       }
       return {
         agent_id: agent.agent_id,
@@ -290,9 +336,10 @@ export default function Dashboard() {
         statusBreakdown: {} as Record<string, number>,
         directionBreakdown: {} as Record<string, number>,
         hangupRate,
+        revenueOpportunityRate,
       };
     });
-  }, [filteredAndSortedAgents, hangupRateByAgent, metricsByAgentId]);
+  }, [filteredAndSortedAgents, hangupRateByAgent, revenueRateByAgent, metricsByAgentId]);
   const paginatedMetrics = filteredAndSortedMetrics.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -305,7 +352,7 @@ export default function Dashboard() {
     if (metrics.length > 0) {
       setCurrentPage(1);
     }
-  }, [metrics.length, normalizedSearchQuery, totalCallsFilter, avgDurationFilter, avgMessagesFilter, successRateFilter, hangupRateFilter]);
+  }, [metrics.length, normalizedSearchQuery, totalCallsFilter, avgDurationFilter, avgMessagesFilter, successRateFilter, hangupRateFilter, revenueRateFilter]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -589,6 +636,19 @@ export default function Dashboard() {
                         <select
                           value={hangupRateFilter}
                           onChange={(event) => setHangupRateFilter(event.target.value)}
+                          className="w-48 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                        >
+                          <option>All</option>
+                          <option>Highest First</option>
+                          <option>Lowest First</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <label className="text-sm text-gray-400 mb-1">Sort by Revenue Opportunity</label>
+                        <select
+                          value={revenueRateFilter}
+                          onChange={(event) => setRevenueRateFilter(event.target.value)}
                           className="w-48 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
                         >
                           <option>All</option>

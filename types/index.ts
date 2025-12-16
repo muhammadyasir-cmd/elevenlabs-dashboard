@@ -29,6 +29,7 @@ export interface AgentMetrics {
   avgMessages: number;
   successRate: number;
   hangupRate?: number;
+  revenueOpportunityRate?: number;
   statusBreakdown: Record<string, number>;
   directionBreakdown: Record<string, number>;
 }
@@ -59,4 +60,3 @@ export interface CallCategory {
   count: number;
   percentage: number;
 }
-
