@@ -60,3 +60,22 @@ export interface CallCategory {
   count: number;
   percentage: number;
 }
+
+export interface ChatConversation {
+  session_id: string;
+  message_count: number;
+  status?: string | null;
+  conversation_successful?: string | null;
+  transcript?: string | null;
+  summary_title?: string | null;
+  summary_category?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ChatMetrics {
+  totalConversations: number;
+  avgMessages: number;
+  successRate: number;
+  statusBreakdown: Record<string, number>;
+}

@@ -17,6 +17,9 @@ interface CallCategoriesChartProps {
   agentId?: string;
   startDate?: string;
   endDate?: string;
+  title?: string;
+  totalLabel?: string;
+  valueLabel?: string;
 }
 
 const COLORS = [
@@ -33,13 +36,28 @@ const COLORS = [
   '#6366F1', // Indigo
 ];
 
-export default function CallCategoriesChart({ data, totalCalls, loading, agentId, startDate, endDate }: CallCategoriesChartProps) {
+export default function CallCategoriesChart({
+  data,
+  totalCalls,
+  loading,
+  agentId,
+  startDate,
+  endDate,
+  title,
+  totalLabel,
+  valueLabel,
+}: CallCategoriesChartProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const resolvedTitle = title ?? 'Call Categories';
+  const resolvedTotalLabel = totalLabel ?? 'Total Calls';
+  const resolvedValueLabel = valueLabel ?? 'Calls';
+  const resolvedValueLabelLower = resolvedValueLabel.toLowerCase();
 
   if (loading) {
     return (
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Call Categories</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">{resolvedTitle}</h3>
         <div className="flex items-center justify-center h-64 text-gray-400">
           Loading categories...
         </div>
@@ -50,7 +68,7 @@ export default function CallCategoriesChart({ data, totalCalls, loading, agentId
   if (!data || data.length === 0) {
     return (
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Call Categories</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">{resolvedTitle}</h3>
         <div className="flex items-center justify-center h-64 text-gray-400">
           No data available
         </div>
@@ -69,12 +87,10 @@ export default function CallCategoriesChart({ data, totalCalls, loading, agentId
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-white mb-2">Call Categories</h3>
+        <h3 className="text-lg font-semibold text-white mb-2">{resolvedTitle}</h3>
         <p className="text-sm text-gray-400">
-          Total Calls: <span className="text-white font-semibold">{totalCalls.toLocaleString()}</span>
-        </p>
-        <p className="text-xs text-gray-500 mt-1">
-          Categorized using fuzzy matching on call summary titles
+          {resolvedTotalLabel}:{' '}
+          <span className="text-white font-semibold">{totalCalls.toLocaleString()}</span>
         </p>
       </div>
       
@@ -94,7 +110,12 @@ export default function CallCategoriesChart({ data, totalCalls, loading, agentId
             type="number"
             stroke="#9CA3AF"
             tick={{ fill: '#9CA3AF' }}
-            label={{ value: 'Number of Calls', position: 'insideBottom', offset: -5, fill: '#9CA3AF' }}
+            label={{
+              value: `Number of ${resolvedValueLabel}`,
+              position: 'insideBottom',
+              offset: -5,
+              fill: '#9CA3AF',
+            }}
           />
           <YAxis
             type="category"
@@ -111,10 +132,7 @@ export default function CallCategoriesChart({ data, totalCalls, loading, agentId
             }}
             formatter={(value: number, name: string, props: any) => {
               if (name === 'count') {
-                return [
-                  `${value.toLocaleString()} calls (${props.payload.percentage}%)`,
-                  'Count',
-                ];
+                return [`${value.toLocaleString()} ${resolvedValueLabelLower} (${props.payload.percentage}%)`, 'Count'];
               }
               return [value, name];
             }}

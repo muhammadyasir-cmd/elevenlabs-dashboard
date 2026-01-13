@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { signOut } from 'next-auth/react';
-import { Agent, AgentMetrics, DateRange, CallCategory } from '@/types';
+import { Agent, AgentMetrics, ChatMetrics, DateRange, CallCategory } from '@/types';
 import { getDateRange } from '@/lib/supabase';
 import DateRangePicker from '@/components/DateRangePicker';
 import AgentCard from '@/components/AgentCard';
 import AgentDetailModal from '@/components/AgentDetailModal';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import CallCategoriesChart from '@/components/Charts/CallCategoriesChart';
+import ChatConversationsTable from '@/components/ChatConversationsTable';
 
 export default function Dashboard() {
   console.log('🔵 Dashboard component rendering');
@@ -22,11 +23,13 @@ export default function Dashboard() {
     return range;
   });
   const [selectedAgent, setSelectedAgent] = useState<{ id: string; name: string } | null>(null);
+  const [viewMode, setViewMode] = useState<'calls' | 'chats'>('calls');
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showChatData, setShowChatData] = useState(false);
   const [totalCallsFilter, setTotalCallsFilter] = useState<string>('All');
   const [avgDurationFilter, setAvgDurationFilter] = useState<string>('All');
   const [avgMessagesFilter, setAvgMessagesFilter] = useState<string>('All');
@@ -47,6 +50,11 @@ export default function Dashboard() {
     addDebugInfo('Component mounted');
   }, [addDebugInfo]);
 
+  useEffect(() => {
+    setSelectedAgent(null);
+    setCurrentPage(1);
+  }, [viewMode]);
+
   // React Query hooks for data fetching
   const {
     data: agentsData,
@@ -65,6 +73,7 @@ export default function Dashboard() {
       return response.json();
     },
     refetchInterval: autoRefresh ? 30000 : false,
+    enabled: viewMode === 'calls',
   });
 
   const {
@@ -84,6 +93,7 @@ export default function Dashboard() {
       return response.json();
     },
     refetchInterval: autoRefresh ? 30000 : false,
+    enabled: viewMode === 'calls',
   });
 
   const {
@@ -100,18 +110,81 @@ export default function Dashboard() {
       return response.json();
     },
     refetchInterval: autoRefresh ? 30000 : false,
+    enabled: viewMode === 'calls',
+  });
+
+  const {
+    data: chatMetricsData,
+    isLoading: chatMetricsLoading,
+    error: chatMetricsError,
+    refetch: refetchChatMetrics,
+  } = useQuery({
+    queryKey: ['chat-metrics'],
+    queryFn: async () => {
+      const response = await fetch('/api/chat-metrics');
+      if (!response.ok) {
+        throw new Error('Failed to fetch chat metrics');
+      }
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+    enabled: viewMode === 'chats',
+  });
+
+  const {
+    data: chatCategoriesData,
+    isLoading: chatCategoriesLoading,
+    error: chatCategoriesError,
+    refetch: refetchChatCategories,
+  } = useQuery({
+    queryKey: ['chat-categories'],
+    queryFn: async () => {
+      const response = await fetch('/api/chat-categories');
+      if (!response.ok) {
+        throw new Error('Failed to fetch chat categories');
+      }
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+    enabled: viewMode === 'chats',
+  });
+
+  const {
+    data: chatConversationsData,
+    isLoading: chatConversationsLoading,
+    error: chatConversationsError,
+    refetch: refetchChatConversations,
+  } = useQuery({
+    queryKey: ['chat-conversations'],
+    queryFn: async () => {
+      const response = await fetch('/api/chat-conversations');
+      if (!response.ok) {
+        throw new Error('Failed to fetch chat conversations');
+      }
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+    enabled: viewMode === 'chats' && showChatData,
   });
 
   // Derived state
+  const isCallView = viewMode === 'calls';
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  const agents = agentsData?.agents || [];
-  const metrics = (metricsData?.metrics || []).sort(
-    (a: AgentMetrics, b: AgentMetrics) => b.totalConversations - a.totalConversations
-  );
-  const callCategories = categoriesData?.categories || [];
-  const callCategoriesTotal = categoriesData?.totalCalls || 0;
-  const loading = agentsLoading || metricsLoading;
-  const error = agentsError || metricsError;
+  const agents = isCallView ? agentsData?.agents || [] : [];
+  const metrics = isCallView
+    ? (metricsData?.metrics || []).sort(
+        (a: AgentMetrics, b: AgentMetrics) => b.totalConversations - a.totalConversations
+      )
+    : [];
+  const callCategories = isCallView ? categoriesData?.categories || [] : [];
+  const callCategoriesTotal = isCallView ? categoriesData?.totalCalls || 0 : 0;
+  const chatMetrics = !isCallView ? (chatMetricsData?.metrics as ChatMetrics | undefined) : undefined;
+  const chatCategories = !isCallView ? chatCategoriesData?.categories || [] : [];
+  const chatCategoriesTotal = !isCallView ? chatCategoriesData?.totalCalls || 0 : 0;
+  const chatConversations = !isCallView ? chatConversationsData?.conversations || [] : [];
+  const categoriesLoadingState = isCallView ? categoriesLoading : chatCategoriesLoading;
+  const loading = isCallView ? agentsLoading || metricsLoading : chatMetricsLoading || chatCategoriesLoading;
+  const error = isCallView ? agentsError || metricsError : chatMetricsError || chatCategoriesError;
   const metricsByAgentId = useMemo(() => {
     const map = new Map<string, AgentMetrics>();
     metrics.forEach((metric: AgentMetrics) => {
@@ -372,11 +445,19 @@ export default function Dashboard() {
   }, [menuOpen]);
 
   const handleRefresh = useCallback(() => {
-    refetchAgents();
-    refetchMetrics();
-    refetchCategories();
+    if (isCallView) {
+      refetchAgents();
+      refetchMetrics();
+      refetchCategories();
+    } else {
+      refetchChatMetrics();
+      refetchChatCategories();
+      if (showChatData) {
+        refetchChatConversations();
+      }
+    }
     addDebugInfo('Manual refresh triggered');
-  }, [refetchAgents, refetchMetrics, refetchCategories, addDebugInfo]);
+  }, [isCallView, refetchAgents, refetchMetrics, refetchCategories, refetchChatMetrics, refetchChatCategories, refetchChatConversations, showChatData, addDebugInfo]);
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/login' });
@@ -405,6 +486,7 @@ export default function Dashboard() {
             <div className="text-yellow-300 font-mono space-y-1">
               <div>Loading: {loading ? 'YES' : 'NO'}</div>
               <div>Error: {error ? (error instanceof Error ? error.message : String(error)) : 'None'}</div>
+              <div>View Mode: {viewMode}</div>
               <div>Agents: {agents.length}</div>
               <div>Metrics: {metrics.length}</div>
               <div>Date Range: {dateRange.startDate} to {dateRange.endDate}</div>
@@ -477,18 +559,56 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Date Range Picker */}
+        {/* View Mode + Date Range */}
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">Date Range</h2>
-          <DateRangePicker onDateChange={setDateRange} initialRange={dateRange} />
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-white mb-2">View Mode</h2>
+              <p className="text-sm text-gray-400">
+                Switch between call performance and chat performance data sources.
+              </p>
+            </div>
+            <div className="inline-flex bg-gray-900 border border-gray-700 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('calls')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isCallView
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                Calls
+              </button>
+              <button
+                onClick={() => setViewMode('chats')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  !isCallView
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                Chats
+              </button>
+            </div>
+          </div>
+
+          {isCallView && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Date Range</h3>
+              <DateRangePicker onDateChange={setDateRange} initialRange={dateRange} />
+            </div>
+          )}
         </div>
 
         {/* Call Categories Chart */}
         <div className="mb-8">
           <CallCategoriesChart
-            data={callCategories}
-            totalCalls={callCategoriesTotal}
-            loading={categoriesLoading}
+            data={isCallView ? callCategories : chatCategories}
+            totalCalls={isCallView ? callCategoriesTotal : chatCategoriesTotal}
+            loading={categoriesLoadingState}
+            title={isCallView ? 'Call Categories' : 'Chat Categories'}
+            totalLabel={isCallView ? 'Total Calls' : 'Total Chats'}
+            valueLabel={isCallView ? 'Calls' : 'Chats'}
           />
         </div>
 
@@ -512,7 +632,7 @@ export default function Dashboard() {
         )}
 
         {/* Loading State */}
-        {loading && agents.length === 0 && (
+        {loading && ((isCallView && agents.length === 0) || (!isCallView && !chatMetrics)) && (
           <div className="flex flex-col justify-center items-center py-16">
             <LoadingSpinner size="lg" />
             <p className="text-gray-400 mt-4">Loading dashboard data...</p>
@@ -520,8 +640,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Agents Overview */}
-        {!loading && !error && (
+        {/* Agents Overview - Calls */}
+        {!loading && !error && isCallView && (
           <>
             {agents.length === 0 ? (
               <div className="bg-gray-800 border border-gray-700 rounded-lg p-12 text-center">
@@ -761,8 +881,116 @@ export default function Dashboard() {
           </>
         )}
 
+        {/* Chat Overview */}
+        {!loading && !error && !isCallView && (
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-2">Chat Overview</h2>
+              <p className="text-gray-400">
+                Aggregate metrics from all chat conversations.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <p className="text-sm text-gray-400 mb-2">Total Conversations</p>
+                <p className="text-3xl font-bold text-white">
+                  {chatMetrics?.totalConversations?.toLocaleString() ?? 0}
+                </p>
+              </div>
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <p className="text-sm text-gray-400 mb-2">Average Messages</p>
+                <p className="text-3xl font-bold text-white">
+                  {chatMetrics?.avgMessages !== undefined ? chatMetrics.avgMessages.toFixed(1) : '0.0'}
+                </p>
+              </div>
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <p className="text-sm text-gray-400 mb-2">Success Rate</p>
+                <p className="text-3xl font-bold text-white">
+                  {chatMetrics?.successRate !== undefined ? `${chatMetrics.successRate.toFixed(1)}%` : '0.0%'}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Status Breakdown</h3>
+              {chatMetrics && Object.keys(chatMetrics.statusBreakdown || {}).length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Object.entries(chatMetrics.statusBreakdown).map(([status, count]) => (
+                    <div key={status} className="flex items-center justify-between bg-gray-900 border border-gray-700 rounded-lg px-4 py-3">
+                      <span className="text-gray-300 capitalize">{status}</span>
+                      <span className="text-white font-semibold">{count.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-400">No status data available.</p>
+              )}
+            </div>
+
+            {/* Show Chat Data Button */}
+            <div className="flex justify-center">
+              <button
+                onClick={() => setShowChatData(!showChatData)}
+                disabled={chatConversationsLoading}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {chatConversationsLoading ? (
+                  <>
+                    <LoadingSpinner size="sm" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    {showChatData ? (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
+                        Hide Chat Data
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        Show Chat Data
+                      </>
+                    )}
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Chat Conversations Table */}
+            {showChatData && (
+              <div className="mt-6">
+                {chatConversationsError ? (
+                  <div className="bg-red-900/20 border border-red-700 rounded-lg p-6">
+                    <h3 className="text-red-400 font-bold text-lg mb-2">❌ Error Loading Conversations</h3>
+                    <p className="text-red-300 mb-4">
+                      {chatConversationsError instanceof Error ? chatConversationsError.message : String(chatConversationsError)}
+                    </p>
+                    <button
+                      onClick={() => refetchChatConversations()}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <ChatConversationsTable
+                    conversations={chatConversations}
+                    loading={chatConversationsLoading}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Agent Detail Modal */}
-        {selectedAgent && (
+        {isCallView && selectedAgent && (
           <AgentDetailModal
             agentId={selectedAgent.id}
             agentName={selectedAgent.name}
